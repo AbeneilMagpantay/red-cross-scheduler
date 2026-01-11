@@ -98,5 +98,4 @@ The application is optimized for deployment on Vercel.
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
----
-*Red Cross Camarines Sur Chapter - 2026*
+
