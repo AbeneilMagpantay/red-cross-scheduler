@@ -1,0 +1,127 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { isConfigured } from '../lib/supabase';
+import { Cross, Loader, AlertTriangle } from 'lucide-react';
+
+export default function Login() {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const { signIn, configError } = useAuth();
+    const navigate = useNavigate();
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+
+        try {
+            const { error: signInError } = await signIn(email, password);
+
+            if (signInError) {
+                setError(signInError.message);
+            } else {
+                navigate('/');
+            }
+        } catch (err) {
+            setError('An unexpected error occurred');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="login-page">
+            <div className="login-container">
+                <div className="login-card">
+                    <div className="login-logo">
+                        <div className="icon">
+                            <Cross size={32} />
+                        </div>
+                        <h1>Red Cross Scheduler</h1>
+                        <p>Camarines Sur Chapter</p>
+                    </div>
+
+                    {/* Configuration Warning */}
+                    {configError && (
+                        <div style={{
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            border: '1px solid rgba(245, 158, 11, 0.3)',
+                            padding: 'var(--space-md)',
+                            borderRadius: 'var(--radius-md)',
+                            marginBottom: 'var(--space-lg)',
+                            color: 'var(--warning)'
+                        }}>
+                            <div className="flex items-center gap-sm mb-sm">
+                                <AlertTriangle size={18} />
+                                <strong>Setup Required</strong>
+                            </div>
+                            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                                Please configure your Supabase credentials in <code>.env.local</code> file.
+                                See <code>README.md</code> for instructions.
+                            </p>
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit}>
+                        {error && (
+                            <div className="form-error mb-lg" style={{
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                padding: 'var(--space-md)',
+                                borderRadius: 'var(--radius-md)',
+                                textAlign: 'center'
+                            }}>
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="form-group">
+                            <label className="form-label">Email Address</label>
+                            <input
+                                type="email"
+                                className="form-input"
+                                placeholder="Enter your email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Password</label>
+                            <input
+                                type="password"
+                                className="form-input"
+                                placeholder="Enter your password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            className="btn btn-primary btn-lg w-full"
+                            disabled={loading || configError}
+                        >
+                            {loading ? (
+                                <>
+                                    <div className="loading" />
+                                    Signing in...
+                                </>
+                            ) : (
+                                'Sign In'
+                            )}
+                        </button>
+                    </form>
+
+                    <p className="text-center text-muted text-sm mt-lg">
+                        Contact your administrator for access
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
