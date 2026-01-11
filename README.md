@@ -1,99 +1,92 @@
-# 🏥 Red Cross Camarines Sur Scheduling System
+# Red Cross (Camarines Sur) Scheduling System
 
-<div align="center">
+A comprehensive web-based platform designed to streamline duty scheduling, personnel management, and attendance tracking for the Red Cross Camarines Sur Chapter. This solution modernizes the workflow by replacing manual logs with a centralized, real-time database system.
 
-![Red Cross Logo](https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Flag_of_the_Red_Cross.svg/200px-Flag_of_the_Red_Cross.svg.png)
+![Dashboard Overview](public/showcase/screenshot-2.png)
 
-### A modern, cloud-native duty scheduling platform for managing Red Cross personnel, shifts, and attendance.
+## Table of Contents
 
-[![React](https://img.shields.io/badge/React-18.3-blue?style=for-the-badge&logo=react)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-6.0-purple?style=for-the-badge&logo=vite)](https://vitejs.dev/)
-[![Supabase](https://img.shields.io/badge/Supabase-Auth%20%7C%20DB-green?style=for-the-badge&logo=supabase)](https://supabase.com/)
-[![License](https://img.shields.io/badge/License-MIT-gray?style=for-the-badge)](LICENSE)
+- [Features](#features)
+- [Built With](#built-with)
+- [Getting Started](#getting-started)
+- [Usage](#usage)
+- [Deploy](#deploy)
+- [License](#license)
 
-</div>
+## Features
 
----
+*   **Role-Based Access Control**: Secure authentication distinguishing between administrators and standard volunteers.
+*   **Dynamic Scheduling**: Drag-and-drop calendar interface for assigning field duties and managing rosters.
+*   **Personnel Management**: Centralized database for staff profiles, contact details, and department allocation.
+*   **Attendance Tracking**: Digital check-in/check-out system with automated status reporting (Present, Late, Absent).
+*   **Shift Swapping**: Automated workflow for personnel to request and validate shift exchanges.
+*   **Real-time Dashboard**: Live statistics on workforce deployment and pending administrative actions.
 
-## 🚀 Overview
+## Built With
 
-The **Red Cross Scheduler** allows administrators to efficiently manage volunteer rosters, track attendance in real-time, and handle shift swaps seamlessly. Built with performance and user experience in mind, it replaces manual tracking with a robust, database-backed solution.
+This project exploits a modern tech stack to ensure performance, scalability, and ease of maintenance.
 
-## ✨ Key Features
+*   [React](https://reactjs.org/) - Frontend library for building user interfaces
+*   [Vite](https://vitejs.dev/) - Next Generation Frontend Tooling
+*   [Supabase](https://supabase.com/) - Open Source Firebase alternative (PostgreSQL + Auth)
+*   [Lucide React](https://lucide.dev/) - Consistent icon set
 
-- **🔐 Role-Based Authentication**: Secure admin and staff portals powered by Supabase Auth along with automated account provisioning.
-- **📅 Interactive Schedule**: Drag-and-drop style calendar interface for assigning duties and managing conflicts.
-- **✅ Attendance Tracking**: Digital logbook for checking in/out, marking status (Present/Late/Absent), and generating reports.
-- **🔄 Smart Swap System**: Automated workflow for personnel to request shift exchanges with admin approval.
-- **📱 Responsive Design**: Fully operational on mobile devices for field use.
+## Getting Started
 
-## 📸 Showcase
-
-### Admin Dashboard
-*Real-time overview of personnel status, pending requests, and today's roster.*
-![Dashboard](public/showcase/dashboard.png)
-
-### Scheduling Interface
-*Intuitive calendar view for managing monthly duties and assignments.*
-![Schedule](public/showcase/schedule.png)
-
----
-
-## 🛠 Tech Stack
-
-| Component | Technology | Description |
-|-----------|------------|-------------|
-| **Frontend** | React + Vite | Fast, responsive UI library |
-| **Backend** | Supabase | PostgreSQL Database & Authentication |
-| **Styling** | CSS Variables | Custom Design System (No heavy frameworks) |
-| **Icons** | Lucide React | Modern, lightweight component icons |
-| **Deploy** | Vercel | CI/CD and Hosting |
-
----
-
-## ⚡ Quick Start
+Follow these steps to set up the project locally.
 
 ### Prerequisites
-- Node.js 20+
-- A Supabase Project (Free Tier)
+
+*   Node.js (v20 or higher recommended)
+*   npm or yarn
+*   A Supabase project (Free Tier is sufficient)
 
 ### Installation
 
-1.  **Clone the repository**
-    ```bash
+1.  Clone the repository
+    ```sh
     git clone https://github.com/AbeneilMagpantay/red-cross-scheduler.git
-    cd red-cross-scheduler
     ```
-
-2.  **Install dependencies**
-    ```bash
+2.  Install NPM packages
+    ```sh
     npm install
     ```
-
-3.  **Environment Setup**
-    Create a `.env.local` file in the root directory:
+3.  Configure Environment Variables
+    Create a `.env.local` file in the root directory and add your Supabase credentials:
     ```env
-    VITE_SUPABASE_URL=your_project_url
-    VITE_SUPABASE_ANON_KEY=your_anon_key
+    VITE_SUPABASE_URL=your_supabase_project_url
+    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
     ```
-
-4.  **Run Locally**
-    ```bash
+4.  Run the application
+    ```sh
     npm run dev
     ```
 
----
+## Usage
 
-## 🤝 Contributing
+### Scheduling View
+The core interface allows administrators to view and manage monthly schedules. Assignments can be modified or removed directly from the calendar grid.
 
-Contributions are welcome! Please fork the repository and submit a pull request for any enhancements.
+![Schedule Interface](public/showcase/screenshot-1.png)
 
-1.  Fork the Project
-2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the Branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
+### Personnel Directory
+Manage the volunteer database, including adding new members, updating roles, and monitoring active status.
 
-## 📄 License
+![Personnel Management](public/showcase/screenshot-3.png)
+
+## Deploy
+
+The application is optimized for deployment on Vercel.
+
+1.  Push code to GitHub.
+2.  Import project into Vercel.
+3.  Set `Framework Preset` to **Vite**.
+4.  Add Environment Variables from `.env`.
+5.  Deploy.
+
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
+---
+*Red Cross Camarines Sur Chapter - 2026*
