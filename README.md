@@ -74,6 +74,16 @@ Manage the volunteer database, including adding new members, updating roles, and
 
 ![Personnel Management](public/showcase/screenshot-3.png)
 
+### Attendance Tracking
+Complete digital log of check-ins and check-outs with status monitoring.
+
+![Attendance Tracking](public/showcase/screenshot-4.png)
+
+### Shift Swaps
+Dedicated interface for approving or rejecting shift change requests.
+
+![Shift Swaps](public/showcase/screenshot-5.png)
+
 ## Deploy
 
 The application is optimized for deployment on Vercel.
