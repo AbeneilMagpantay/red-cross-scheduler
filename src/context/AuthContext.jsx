@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [profileLoading, setProfileLoading] = useState(false);
 
     useEffect(() => {
         if (!isConfigured) {
@@ -24,7 +25,9 @@ export function AuthProvider({ children }) {
 
                 if (mounted && session?.user) {
                     setUser(session.user);
-                    await loadProfile(session.user);
+                    setLoading(false); // Stop main loading immediately
+                    // Load profile in background
+                    loadProfile(session.user);
                 } else if (mounted) {
                     setLoading(false);
                 }
@@ -36,6 +39,7 @@ export function AuthProvider({ children }) {
 
         async function loadProfile(currentUser) {
             if (!currentUser) return;
+            setProfileLoading(true);
             try {
                 // Try finding by ID first
                 let { data } = await db.getPersonnelById(currentUser.id);
@@ -47,16 +51,15 @@ export function AuthProvider({ children }) {
                 }
 
                 if (mounted) {
-                    // Set profile even if null - let ProtectedRoute handle access control
                     setProfile(data);
-                    setLoading(false);
                 }
             } catch (error) {
                 console.error('Profile load error:', error);
                 if (mounted) {
                     setProfile(null);
-                    setLoading(false);
                 }
+            } finally {
+                if (mounted) setProfileLoading(false);
             }
         }
 
@@ -69,13 +72,11 @@ export function AuthProvider({ children }) {
             if (session?.user) {
                 setUser(session.user);
                 if (event === 'SIGNED_IN') {
-                    setLoading(true);
-                    await loadProfile(session.user);
+                    loadProfile(session.user);
                 }
             } else {
                 setUser(null);
                 setProfile(null);
-                setLoading(false);
             }
         });
 
@@ -89,6 +90,7 @@ export function AuthProvider({ children }) {
         user,
         profile,
         loading,
+        profileLoading,
         signIn: async (email, password) => {
             const result = await auth.signIn(email, password);
             return result;

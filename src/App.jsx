@@ -13,8 +13,9 @@ import './index.css';
 
 // Protected Route wrapper
 function ProtectedRoute({ children, adminOnly = false }) {
-  const { user, profile, loading, isAdmin } = useAuth();
+  const { user, profile, loading, profileLoading, isAdmin } = useAuth();
 
+  // Show loading while checking session
   if (loading) {
     return (
       <div className="flex items-center justify-center" style={{ height: '100vh' }}>
@@ -26,6 +27,15 @@ function ProtectedRoute({ children, adminOnly = false }) {
   // Not logged in
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Show loading while profile is being fetched
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center" style={{ height: '100vh' }}>
+        <div className="loading" style={{ width: 48, height: 48 }} />
+      </div>
+    );
   }
 
   // Block users without a valid personnel record (deleted users)
