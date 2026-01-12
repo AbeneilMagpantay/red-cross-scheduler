@@ -126,11 +126,18 @@ export default function Schedule() {
     };
 
     const handleEditSchedule = (schedule) => {
+        // Check if user can edit this schedule
+        const canEdit = isAdmin || schedule.personnel_id === profile?.id;
+        if (!canEdit) {
+            alert('You can only view your own schedule entries.');
+            return;
+        }
+
         setEditingSchedule(schedule);
         setFormData({
             personnel_id: schedule.personnel_id,
             duty_date: schedule.duty_date,
-            start_time: schedule.start_time.slice(0, 5), // Ensure HH:MM format
+            start_time: schedule.start_time.slice(0, 5),
             end_time: schedule.end_time.slice(0, 5),
             notes: schedule.notes || ''
         });

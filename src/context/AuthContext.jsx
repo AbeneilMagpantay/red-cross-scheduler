@@ -9,7 +9,6 @@ export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [accessDenied, setAccessDenied] = useState(false);
 
     useEffect(() => {
         if (!isConfigured) {
@@ -48,24 +47,16 @@ export function AuthProvider({ children }) {
                 }
 
                 if (mounted) {
-                    if (data && data.is_active !== false) {
-                        // Valid active personnel record found
-                        setProfile(data);
-                        setAccessDenied(false);
-                    } else {
-                        // No personnel record or inactive - deny access
-                        console.log('Access denied: No valid personnel record');
-                        setProfile(null);
-                        setAccessDenied(true);
-                        // Sign out the user
-                        await auth.signOut();
-                        setUser(null);
-                    }
+                    // Set profile even if null - let ProtectedRoute handle access control
+                    setProfile(data);
                     setLoading(false);
                 }
             } catch (error) {
                 console.error('Profile load error:', error);
-                if (mounted) setLoading(false);
+                if (mounted) {
+                    setProfile(null);
+                    setLoading(false);
+                }
             }
         }
 
@@ -98,7 +89,6 @@ export function AuthProvider({ children }) {
         user,
         profile,
         loading,
-        accessDenied,
         signIn: async (email, password) => {
             const result = await auth.signIn(email, password);
             return result;
@@ -108,7 +98,6 @@ export function AuthProvider({ children }) {
             await auth.signOut();
             setUser(null);
             setProfile(null);
-            setAccessDenied(false);
         },
         updatePassword: (newPassword) => auth.updatePassword(newPassword),
         isAdmin: profile?.role === 'admin'
