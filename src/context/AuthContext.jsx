@@ -9,10 +9,7 @@ export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
-
-    // Initialize state from existing session if available (before effect)
-    // This helps react fast on reload
-    const [initialized, setInitialized] = useState(false);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     useEffect(() => {
         if (!isConfigured) {
@@ -24,13 +21,11 @@ export function AuthProvider({ children }) {
 
         async function loadUserSession() {
             try {
-                // 1. Get session
                 const { data: { session } } = await auth.getSession();
 
                 if (mounted && session?.user) {
                     setUser(session.user);
-                    // 2. Fetch profile in background
-                    loadProfile(session.user);
+                    await loadProfile(session.user);
                 } else if (mounted) {
                     setLoading(false);
                 }
@@ -53,8 +48,19 @@ export function AuthProvider({ children }) {
                 }
 
                 if (mounted) {
-                    setProfile(data);
-                    // Only set loading to false after we attempted profile load
+                    if (data && data.is_active !== false) {
+                        // Valid active personnel record found
+                        setProfile(data);
+                        setAccessDenied(false);
+                    } else {
+                        // No personnel record or inactive - deny access
+                        console.log('Access denied: No valid personnel record');
+                        setProfile(null);
+                        setAccessDenied(true);
+                        // Sign out the user
+                        await auth.signOut();
+                        setUser(null);
+                    }
                     setLoading(false);
                 }
             } catch (error) {
@@ -63,22 +69,17 @@ export function AuthProvider({ children }) {
             }
         }
 
-        // Start loading
         loadUserSession();
 
-        // Listen for changes
-        const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
+        const { data: { subscription } } = auth.onAuthStateChange(async (event, session) => {
             console.log('Auth Change:', event);
             if (!mounted) return;
 
             if (session?.user) {
                 setUser(session.user);
-                // On initial load, loadUserSession handles profile. 
-                // We only need to trigger loadProfile here for SIGNED_IN or TOKEN_REFRESHED explicitly if needed
-                // But for simplicity, let's just re-fetch profile if we have a user and no profile, or if it changed
                 if (event === 'SIGNED_IN') {
                     setLoading(true);
-                    loadProfile(session.user);
+                    await loadProfile(session.user);
                 }
             } else {
                 setUser(null);
@@ -97,12 +98,17 @@ export function AuthProvider({ children }) {
         user,
         profile,
         loading,
-        signIn: (email, password) => auth.signIn(email, password),
+        accessDenied,
+        signIn: async (email, password) => {
+            const result = await auth.signIn(email, password);
+            return result;
+        },
         signUp: (email, password, meta) => auth.signUp(email, password, meta),
         signOut: async () => {
             await auth.signOut();
             setUser(null);
             setProfile(null);
+            setAccessDenied(false);
         },
         updatePassword: (newPassword) => auth.updatePassword(newPassword),
         isAdmin: profile?.role === 'admin'
