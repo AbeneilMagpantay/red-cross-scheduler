@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import {
     ChevronLeft,
@@ -26,6 +27,7 @@ import {
 } from 'date-fns';
 
 export default function Schedule() {
+    const { profile, isAdmin } = useAuth();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [view, setView] = useState('month'); // 'month' | 'week'
     const [schedules, setSchedules] = useState([]);
@@ -41,6 +43,9 @@ export default function Schedule() {
         end_time: '17:00',
         notes: ''
     });
+
+    // Check if current user can delete the editing schedule
+    const canDeleteSchedule = isAdmin || (editingSchedule && editingSchedule.personnel_id === profile?.id);
 
     useEffect(() => {
         loadData();
@@ -352,7 +357,7 @@ export default function Schedule() {
                         display: 'flex',
                         justifyContent: 'space-between'
                     }}>
-                        {editingSchedule ? (
+                        {editingSchedule && canDeleteSchedule ? (
                             <button
                                 type="button"
                                 className="btn"
