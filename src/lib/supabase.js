@@ -45,6 +45,10 @@ export const auth = {
     onAuthStateChange: (callback) => {
         if (!supabase) return { data: { subscription: { unsubscribe: () => { } } } };
         return supabase.auth.onAuthStateChange(callback);
+    },
+    updatePassword: async (newPassword) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.auth.updateUser({ password: newPassword });
     }
 };
 

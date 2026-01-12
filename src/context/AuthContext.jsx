@@ -104,6 +104,7 @@ export function AuthProvider({ children }) {
             setUser(null);
             setProfile(null);
         },
+        updatePassword: (newPassword) => auth.updatePassword(newPassword),
         isAdmin: profile?.role === 'admin'
     };
 

@@ -10,7 +10,8 @@ import {
     LogOut,
     Cross,
     Menu,
-    X
+    X,
+    Settings
 } from 'lucide-react';
 
 const navItems = [
@@ -19,6 +20,7 @@ const navItems = [
     { path: '/schedule', label: 'Schedule', icon: Calendar },
     { path: '/attendance', label: 'Attendance', icon: ClipboardCheck },
     { path: '/swaps', label: 'Shift Swaps', icon: ArrowLeftRight },
+    { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function Sidebar() {

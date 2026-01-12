@@ -7,6 +7,7 @@ import Personnel from './pages/Personnel';
 import Schedule from './pages/Schedule';
 import Attendance from './pages/Attendance';
 import Swaps from './pages/Swaps';
+import Settings from './pages/Settings';
 import './index.css';
 
 // Protected Route wrapper
@@ -112,6 +113,17 @@ function AppRoutes() {
           <ProtectedRoute>
             <AppLayout>
               <Swaps />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <Settings />
             </AppLayout>
           </ProtectedRoute>
         }
