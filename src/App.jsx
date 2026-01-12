@@ -8,6 +8,7 @@ import Schedule from './pages/Schedule';
 import Attendance from './pages/Attendance';
 import Swaps from './pages/Swaps';
 import Settings from './pages/Settings';
+import ResetPassword from './pages/ResetPassword';
 import './index.css';
 
 // Protected Route wrapper
@@ -61,6 +62,11 @@ function AppRoutes() {
       <Route
         path="/login"
         element={user ? <Navigate to="/" replace /> : <Login />}
+      />
+
+      <Route
+        path="/reset-password"
+        element={<ResetPassword />}
       />
 
       <Route

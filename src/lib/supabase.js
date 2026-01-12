@@ -49,6 +49,16 @@ export const auth = {
     updatePassword: async (newPassword) => {
         if (!supabase) return { data: null, error: { message: 'Not configured' } };
         return supabase.auth.updateUser({ password: newPassword });
+    },
+    resetPasswordForEmail: async (email) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin + '/reset-password'
+        });
+    },
+    getSession: async () => {
+        if (!supabase) return { data: { session: null } };
+        return supabase.auth.getSession();
     }
 };
 
