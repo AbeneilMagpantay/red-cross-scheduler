@@ -13,7 +13,7 @@ import './index.css';
 
 // Protected Route wrapper
 function ProtectedRoute({ children, adminOnly = false }) {
-  const { user, profile, loading, isAdmin, signOut } = useAuth();
+  const { user, profile, loading, isAdmin } = useAuth();
 
   if (loading) {
     return (
@@ -23,20 +23,18 @@ function ProtectedRoute({ children, adminOnly = false }) {
     );
   }
 
+  // Not logged in
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Block users without a valid personnel record
+  // Block users without a valid personnel record (deleted users)
   if (!profile) {
-    // Sign them out and redirect
-    signOut();
     return <Navigate to="/login" replace />;
   }
 
   // Block inactive users
   if (profile.is_active === false) {
-    signOut();
     return <Navigate to="/login" replace />;
   }
 
