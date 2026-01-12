@@ -17,8 +17,11 @@ export default function Login() {
         setError('');
         setLoading(true);
 
+        // Normalize email: trim whitespace and convert to lowercase
+        const normalizedEmail = email.trim().toLowerCase();
+
         try {
-            const { error: signInError } = await signIn(email, password);
+            const { error: signInError } = await signIn(normalizedEmail, password);
 
             if (signInError) {
                 setError(signInError.message);
@@ -85,6 +88,10 @@ export default function Login() {
                                 placeholder="Enter your email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                autoComplete="email"
+                                spellCheck="false"
                                 required
                             />
                         </div>
