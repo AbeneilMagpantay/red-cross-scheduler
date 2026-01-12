@@ -55,10 +55,6 @@ export const auth = {
         return supabase.auth.resetPasswordForEmail(email, {
             redirectTo: window.location.origin + '/reset-password'
         });
-    },
-    getSession: async () => {
-        if (!supabase) return { data: { session: null } };
-        return supabase.auth.getSession();
     }
 };
 
