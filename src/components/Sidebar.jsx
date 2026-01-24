@@ -11,8 +11,6 @@ import {
     Cross,
     Menu,
     X,
-    Menu,
-    X,
     Settings,
     FileText
 } from 'lucide-react';
