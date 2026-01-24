@@ -41,12 +41,35 @@ function ProtectedRoute({ children, adminOnly = false }) {
 
   // Block users without a valid personnel record (deleted users)
   if (!profile) {
-    return <Navigate to="/login" replace />;
+    return (
+      <div className="flex items-center justify-center flex-col gap-md" style={{ height: '100vh', padding: '2rem', textAlign: 'center' }}>
+        <h2 style={{ color: 'var(--error)' }}>Access Denied</h2>
+        <p>No personnel record found for this account.</p>
+        <p className="text-muted">Please contact your administrator.</p>
+        <button
+          className="btn btn-secondary mt-md"
+          onClick={() => window.location.href = '/login'} // Force reload to clear state if needed
+        >
+          Back to Login
+        </button>
+      </div>
+    );
   }
 
   // Block inactive users
   if (profile.is_active === false) {
-    return <Navigate to="/login" replace />;
+    return (
+      <div className="flex items-center justify-center flex-col gap-md" style={{ height: '100vh', padding: '2rem', textAlign: 'center' }}>
+        <h2 style={{ color: 'var(--warning)' }}>Account Inactive</h2>
+        <p>Your account has been deactivated.</p>
+        <button
+          className="btn btn-secondary mt-md"
+          onClick={() => window.location.href = '/login'}
+        >
+          Back to Login
+        </button>
+      </div>
+    );
   }
 
   if (adminOnly && !isAdmin) {
