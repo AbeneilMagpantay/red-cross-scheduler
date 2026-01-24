@@ -190,7 +190,7 @@ export const db = {
         if (!supabase) return { data: [], error: null };
         let query = supabase
             .from('attendance')
-            .select('*, personnel(name), schedules(duty_date, start_time, end_time)');
+            .select('*, personnel(name), schedules(duty_date, start_time, end_time, title)');
         if (date) query = query.eq('schedules.duty_date', date);
         return query.order('created_at', { ascending: false });
     },

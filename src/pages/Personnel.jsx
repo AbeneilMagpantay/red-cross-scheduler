@@ -33,7 +33,9 @@ export default function Personnel() {
         department_id: '',
         is_active: true,
         password: '',
-        createAccount: true
+        createAccount: true,
+        license_type: '',
+        license_expiry: ''
     });
 
     useEffect(() => {
@@ -69,7 +71,9 @@ export default function Personnel() {
                 department_id: person.department_id || '',
                 is_active: person.is_active,
                 password: '',
-                createAccount: false
+                createAccount: false,
+                license_type: person.license_type || '',
+                license_expiry: person.license_expiry || ''
             });
         } else {
             setEditingPerson(null);
@@ -81,7 +85,9 @@ export default function Personnel() {
                 department_id: '',
                 is_active: true,
                 password: '',
-                createAccount: true
+                createAccount: true,
+                license_type: '',
+                license_expiry: ''
             });
         }
         setIsModalOpen(true);
@@ -250,7 +256,7 @@ export default function Personnel() {
                         onChange={(e) => setFilterDept(e.target.value)}
                         style={{ width: '200px' }}
                     >
-                        <option value="">All Departments</option>
+                        <option value="">All Batches</option>
                         {departments.map(dept => (
                             <option key={dept.id} value={dept.id}>{dept.name}</option>
                         ))}
@@ -274,7 +280,7 @@ export default function Personnel() {
                                     <th>Name</th>
                                     <th>Contact</th>
                                     <th>Role</th>
-                                    <th>Department</th>
+                                    <th>Batch Name</th>
                                     <th>Status</th>
                                     <th style={{ width: '100px' }}>Actions</th>
                                 </tr>
@@ -420,17 +426,39 @@ export default function Personnel() {
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">Department</label>
+                        <label className="form-label">Batch Name</label>
                         <select
                             className="form-select"
                             value={formData.department_id}
                             onChange={(e) => setFormData({ ...formData, department_id: e.target.value })}
                         >
-                            <option value="">Select Department</option>
+                            <option value="">Select Batch</option>
                             {departments.map(dept => (
                                 <option key={dept.id} value={dept.id}>{dept.name}</option>
                             ))}
                         </select>
+                    </div>
+
+                    <div className="flex gap-md">
+                        <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">License Type</label>
+                            <input
+                                type="text"
+                                className="form-input"
+                                value={formData.license_type}
+                                onChange={(e) => setFormData({ ...formData, license_type: e.target.value })}
+                                placeholder="e.g. EMT, BLS"
+                            />
+                        </div>
+                        <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">License Expiry</label>
+                            <input
+                                type="date"
+                                className="form-input"
+                                value={formData.license_expiry}
+                                onChange={(e) => setFormData({ ...formData, license_expiry: e.target.value })}
+                            />
+                        </div>
                     </div>
 
                     {/* Account Creation Section - Only for new personnel */}

@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Personnel from './pages/Personnel';
 import Schedule from './pages/Schedule';
 import Attendance from './pages/Attendance';
+import Records from './pages/Records';
 import Swaps from './pages/Swaps';
 import Settings from './pages/Settings';
 import ResetPassword from './pages/ResetPassword';
@@ -129,6 +130,17 @@ function AppRoutes() {
           <ProtectedRoute>
             <AppLayout>
               <Attendance />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/records"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <Records />
             </AppLayout>
           </ProtectedRoute>
         }

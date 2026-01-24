@@ -33,14 +33,21 @@ export default function Schedule() {
     const [schedules, setSchedules] = useState([]);
     const [personnel, setPersonnel] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Modals
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+    // State
     const [editingSchedule, setEditingSchedule] = useState(null);
+    const [viewingEvent, setViewingEvent] = useState(null); // { title, date, schedules: [] }
     const [selectedDate, setSelectedDate] = useState(null);
     const [formData, setFormData] = useState({
         personnel_id: '',
         duty_date: '',
         start_time: '08:00',
         end_time: '17:00',
+        title: '',
         notes: ''
     });
 
@@ -91,9 +98,29 @@ export default function Schedule() {
         }
     }, [currentDate, view]);
 
-    const getSchedulesForDay = (date) => {
+    // Group schedules by Title (or Time if no title) for a specific day
+    const getEventsForDay = (date) => {
         const dateStr = format(date, 'yyyy-MM-dd');
-        return schedules.filter(s => s.duty_date === dateStr);
+        const daySchedules = schedules.filter(s => s.duty_date === dateStr);
+
+        const groups = {};
+
+        daySchedules.forEach(schedule => {
+            // Key: Title if exists, otherwise "Individual"
+            const key = schedule.title ? schedule.title : 'Individual Duties';
+
+            if (!groups[key]) {
+                groups[key] = {
+                    title: key,
+                    date: date,
+                    schedules: [],
+                    isGroup: !!schedule.title
+                };
+            }
+            groups[key].schedules.push(schedule);
+        });
+
+        return Object.values(groups);
     };
 
     const handlePrev = () => {
@@ -120,9 +147,15 @@ export default function Schedule() {
             duty_date: format(date, 'yyyy-MM-dd'),
             start_time: '08:00',
             end_time: '17:00',
+            title: '',
             notes: ''
         });
         setIsModalOpen(true);
+    };
+
+    const handleEventClick = (event) => {
+        setViewingEvent(event);
+        setIsViewModalOpen(true);
     };
 
     const handleEditSchedule = (schedule) => {
@@ -139,8 +172,10 @@ export default function Schedule() {
             duty_date: schedule.duty_date,
             start_time: schedule.start_time.slice(0, 5),
             end_time: schedule.end_time.slice(0, 5),
+            title: schedule.title || '',
             notes: schedule.notes || ''
         });
+        setIsViewModalOpen(false); // Close view modal if open
         setIsModalOpen(true);
     };
 
@@ -150,9 +185,7 @@ export default function Schedule() {
         try {
             if (editingSchedule) {
                 const { error } = await db.updateSchedule(editingSchedule.id, formData);
-                if (error) {
-                    throw error;
-                }
+                if (error) throw error;
             } else {
                 await db.createSchedule(formData);
             }
@@ -167,16 +200,23 @@ export default function Schedule() {
     };
 
     const handleDeleteSchedule = async (id) => {
-        // Removed native confirm to avoid browser blocking issues
-        // if (!confirm('Are you sure you want to delete this schedule?')) return;
-
         try {
             const { error } = await db.deleteSchedule(id);
             if (error) {
                 alert('Failed to delete schedule: ' + error.message);
-                console.error('Delete error:', error);
                 return;
             }
+            // Update the viewingEvent list locally to reflect deletion immediately or close if empty
+            if (viewingEvent) {
+                const updatedSchedules = viewingEvent.schedules.filter(s => s.id !== id);
+                if (updatedSchedules.length === 0) {
+                    setIsViewModalOpen(false);
+                    setViewingEvent(null);
+                } else {
+                    setViewingEvent({ ...viewingEvent, schedules: updatedSchedules });
+                }
+            }
+
             setIsModalOpen(false);
             loadData();
         } catch (error) {
@@ -249,7 +289,7 @@ export default function Schedule() {
                     ))}
 
                     {calendarDays.map(day => {
-                        const daySchedules = getSchedulesForDay(day);
+                        const events = getEventsForDay(day);
                         const isCurrentMonth = isSameMonth(day, currentDate);
                         const isToday = isSameDay(day, new Date());
 
@@ -261,24 +301,28 @@ export default function Schedule() {
                                 style={{ minHeight: view === 'week' ? '200px' : '100px' }}
                             >
                                 <div className="calendar-day-number">{format(day, 'd')}</div>
-                                {daySchedules.slice(0, view === 'week' ? 10 : 3).map(schedule => (
+                                {events.slice(0, view === 'week' ? 10 : 3).map((event, idx) => (
                                     <div
-                                        key={schedule.id}
+                                        key={idx}
                                         className="calendar-event"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            handleEditSchedule(schedule);
+                                            handleEventClick(event);
                                         }}
-                                        style={{ cursor: 'pointer' }}
+                                        style={{
+                                            cursor: 'pointer',
+                                            backgroundColor: event.isGroup ? 'var(--primary)' : 'var(--secondary)',
+                                            color: event.isGroup ? 'white' : 'var(--text-primary)'
+                                        }}
                                     >
                                         <div className="flex items-center justify-between">
-                                            <span>{schedule.personnel?.name}</span>
+                                            <span>{event.title} ({event.schedules.length})</span>
                                         </div>
                                     </div>
                                 ))}
-                                {daySchedules.length > (view === 'week' ? 10 : 3) && (
+                                {events.length > (view === 'week' ? 10 : 3) && (
                                     <div className="text-sm text-muted" style={{ padding: '2px 6px' }}>
-                                        +{daySchedules.length - (view === 'week' ? 10 : 3)} more
+                                        +{events.length - (view === 'week' ? 10 : 3)} more
                                     </div>
                                 )}
                             </div>
@@ -286,6 +330,52 @@ export default function Schedule() {
                     })}
                 </div>
             </div>
+
+            {/* View Details Modal */}
+            <Modal
+                isOpen={isViewModalOpen}
+                onClose={() => setIsViewModalOpen(false)}
+                title={viewingEvent?.title || 'Details'}
+            >
+                <div className="flex flex-col gap-md">
+                    <p className="text-muted">
+                        {viewingEvent && format(new Date(viewingEvent.date), 'EEEE, MMMM d, yyyy')}
+                    </p>
+
+                    <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                        {viewingEvent?.schedules.map(schedule => (
+                            <div key={schedule.id} className="card p-md mb-sm flex justify-between items-center">
+                                <div>
+                                    <div className="font-bold">{schedule.personnel?.name}</div>
+                                    <div className="text-sm text-muted">
+                                        {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)}
+                                    </div>
+                                    {schedule.notes && (
+                                        <div className="text-sm mt-xs italic">{schedule.notes}</div>
+                                    )}
+                                </div>
+                                {(isAdmin || schedule.personnel_id === profile?.id) && (
+                                    <button
+                                        className="btn btn-sm btn-secondary"
+                                        onClick={() => handleEditSchedule(schedule)}
+                                    >
+                                        Edit
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="modal-footer" style={{ padding: 0, marginTop: 'var(--space-md)' }}>
+                        <button
+                            className="btn btn-primary w-full"
+                            onClick={() => setIsViewModalOpen(false)}
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Add/Edit Schedule Modal */}
             <Modal
@@ -297,6 +387,17 @@ export default function Schedule() {
                 title={editingSchedule ? "Edit Duty Assignment" : "Assign Duty"}
             >
                 <form onSubmit={handleSubmit}>
+                    <div className="form-group">
+                        <label className="form-label">Duty Event Title</label>
+                        <input
+                            type="text"
+                            className="form-input"
+                            value={formData.title}
+                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                            placeholder="e.g. Medical Standby, Office Duty"
+                        />
+                    </div>
+
                     <div className="form-group">
                         <label className="form-label">Date</label>
                         <input

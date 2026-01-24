@@ -11,7 +11,10 @@ import {
     Cross,
     Menu,
     X,
-    Settings
+    Menu,
+    X,
+    Settings,
+    FileText
 } from 'lucide-react';
 
 const navItems = [
@@ -19,6 +22,7 @@ const navItems = [
     { path: '/personnel', label: 'Personnel', icon: Users, adminOnly: true },
     { path: '/schedule', label: 'Schedule', icon: Calendar },
     { path: '/attendance', label: 'Attendance', icon: ClipboardCheck },
+    { path: '/records', label: 'Duty Records', icon: FileText },
     { path: '/swaps', label: 'Shift Swaps', icon: ArrowLeftRight },
     { path: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -71,12 +75,10 @@ export default function Sidebar() {
 
             <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
                 <div className="sidebar-logo">
-                    <div className="logo-icon">
-                        <Cross size={24} />
-                    </div>
-                    <div>
-                        <h1>Red Cross</h1>
-                        <span>Camarines Sur</span>
+                    <img src="/logo_new.png" alt="Logo" style={{ height: 40, width: 'auto' }} />
+                    <div style={{ marginLeft: '10px' }}>
+                        <h1 style={{ fontSize: '1rem', lineHeight: '1.2' }}>Ateneo College</h1>
+                        <span style={{ fontSize: '0.8rem' }}>Red Cross Youth</span>
                     </div>
                 </div>
 

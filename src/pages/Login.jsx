@@ -69,11 +69,9 @@ export default function Login() {
             <div className="login-container">
                 <div className="login-card">
                     <div className="login-logo">
-                        <div className="icon">
-                            <Cross size={32} />
-                        </div>
-                        <h1>Red Cross Scheduler</h1>
-                        <p>Camarines Sur Chapter</p>
+                        <img src="/logo_new.png" alt="Logo" style={{ height: 80, marginBottom: 'var(--space-md)' }} />
+                        <h1>Ateneo College</h1>
+                        <p>Red Cross Youth</p>
                     </div>
 
                     {configError && (
