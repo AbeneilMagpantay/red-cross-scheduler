@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { isConfigured, auth } from '../lib/supabase';
-import { Cross, AlertTriangle, Check } from 'lucide-react';
+import { AlertTriangle, Check } from 'lucide-react';
 import logoNew from '../assets/logo_new.png';
 
 export default function Login() {
