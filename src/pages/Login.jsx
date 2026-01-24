@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { isConfigured, auth } from '../lib/supabase';
 import { Cross, AlertTriangle, Check } from 'lucide-react';
+import logoNew from '../assets/logo_new.png';
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -69,7 +70,16 @@ export default function Login() {
             <div className="login-container">
                 <div className="login-card">
                     <div className="login-logo">
-                        <img src="/logo_new.png" alt="Logo" style={{ height: 80, marginBottom: 'var(--space-md)' }} />
+                        <img
+                            src={logoNew}
+                            alt="Logo"
+                            style={{
+                                height: 80,
+                                marginBottom: 'var(--space-md)',
+                                margin: '0 auto var(--space-md) auto',
+                                display: 'block'
+                            }}
+                        />
                         <h1>Ateneo College</h1>
                         <p>Red Cross Youth</p>
                     </div>

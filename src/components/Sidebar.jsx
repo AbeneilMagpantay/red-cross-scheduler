@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import logoNew from '../assets/logo_new.png';
 import {
     LayoutDashboard,
     Users,
@@ -8,7 +9,6 @@ import {
     ClipboardCheck,
     ArrowLeftRight,
     LogOut,
-    Cross,
     Menu,
     X,
     Settings,
@@ -73,7 +73,7 @@ export default function Sidebar() {
 
             <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
                 <div className="sidebar-logo">
-                    <img src="/logo_new.png" alt="Logo" style={{ height: 40, width: 'auto' }} />
+                    <img src={logoNew} alt="Logo" style={{ height: 40, width: 'auto' }} />
                     <div style={{ marginLeft: '10px' }}>
                         <h1 style={{ fontSize: '1rem', lineHeight: '1.2' }}>Ateneo College</h1>
                         <span style={{ fontSize: '0.8rem' }}>Red Cross Youth</span>
