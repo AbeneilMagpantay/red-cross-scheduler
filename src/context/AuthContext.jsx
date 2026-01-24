@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
 
         async function loadUserSession() {
             try {
-                const { data: { session } } = await auth.getSession();
+                const { session } = await auth.getSession();
 
                 if (mounted && session?.user) {
                     setUser(session.user);
