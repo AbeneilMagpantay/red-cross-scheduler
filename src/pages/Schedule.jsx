@@ -169,25 +169,9 @@ export default function Schedule() {
     };
 
     const handleEventClick = (event) => {
-        if (!isAdmin) {
-            // Non-admin: check if already registered
-            const alreadyRegistered = event.schedules.some(
-                s => s.personnel_id === profile?.id
-            );
-            if (alreadyRegistered) {
-                // Just view the event details
-                setViewingEvent(event);
-                setIsViewModalOpen(true);
-            } else {
-                // Show registration modal
-                setRegisteringEvent(event);
-                setRegisterForm({ start_time: '08:00', end_time: '17:00' });
-                setIsRegisterModalOpen(true);
-            }
-        } else {
-            setViewingEvent(event);
-            setIsViewModalOpen(true);
-        }
+        // Always open the event details modal for all users
+        setViewingEvent(event);
+        setIsViewModalOpen(true);
     };
 
     const handleRegisterSubmit = async (e) => {
@@ -454,8 +438,8 @@ export default function Schedule() {
                         ))}
                     </div>
 
-                    {/* Non-admin: Register button if not already registered */}
-                    {!isAdmin && viewingEvent && !viewingEvent.schedules.some(s => s.personnel_id === profile?.id) && (
+                    {/* Register button — shown for ALL users who haven't registered yet */}
+                    {viewingEvent && !viewingEvent.schedules.some(s => s.personnel_id === profile?.id) && (
                         <button
                             className="btn btn-primary w-full"
                             onClick={() => {
@@ -481,7 +465,7 @@ export default function Schedule() {
                 </div>
             </Modal>
 
-            {/* Register for Event Modal (Non-Admin) */}
+            {/* Register for Event Modal */}
             <Modal
                 isOpen={isRegisterModalOpen}
                 onClose={() => setIsRegisterModalOpen(false)}
