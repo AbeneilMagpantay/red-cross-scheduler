@@ -20,6 +20,7 @@ export default function Swaps() {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [filter, setFilter] = useState('all');
+    const [alert, setAlert] = useState({ type: '', message: '' });
     const [formData, setFormData] = useState({
         schedule_id: '',
         target_id: '',
@@ -54,19 +55,29 @@ export default function Swaps() {
 
     const handleApprove = async (id) => {
         try {
-            await db.updateSwapRequest(id, 'approved');
+            const { error } = await db.updateSwapRequest(id, 'approved');
+            if (error) {
+                setAlert({ type: 'error', message: 'Failed to approve swap: ' + error.message });
+            } else {
+                setAlert({ type: 'success', message: 'Swap approved! Schedules have been swapped successfully.' });
+            }
             loadData();
+            setTimeout(() => setAlert({ type: '', message: '' }), 5000);
         } catch (error) {
             console.error('Error approving swap:', error);
+            setAlert({ type: 'error', message: 'An error occurred while approving.' });
         }
     };
 
     const handleReject = async (id) => {
         try {
             await db.updateSwapRequest(id, 'rejected');
+            setAlert({ type: 'success', message: 'Swap request has been rejected.' });
             loadData();
+            setTimeout(() => setAlert({ type: '', message: '' }), 5000);
         } catch (error) {
             console.error('Error rejecting swap:', error);
+            setAlert({ type: 'error', message: 'An error occurred while rejecting.' });
         }
     };
 
@@ -78,6 +89,7 @@ export default function Swaps() {
                 requester_id: profile.id,
                 target_id: formData.target_id,
                 schedule_id: formData.schedule_id,
+                reason: formData.reason || null,
                 status: 'pending'
             });
 
@@ -127,6 +139,18 @@ export default function Swaps() {
                     </button>
                 )}
             </div>
+
+            {/* Alert */}
+            {alert.message && (
+                <div className="card mb-lg" style={{
+                    padding: 'var(--space-md)',
+                    background: alert.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                    borderLeft: `4px solid ${alert.type === 'success' ? 'var(--success)' : 'var(--error)'}`,
+                    color: alert.type === 'success' ? 'var(--success)' : 'var(--error)'
+                }}>
+                    {alert.message}
+                </div>
+            )}
 
             {/* Filters */}
             <div className="card mb-lg">
@@ -280,6 +304,17 @@ export default function Swaps() {
                                 <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
                         </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label className="form-label">Reason</label>
+                        <textarea
+                            className="form-input"
+                            rows={3}
+                            value={formData.reason}
+                            onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                            placeholder="Why do you need to swap this shift?"
+                        />
                     </div>
 
                     <div className="modal-footer" style={{ padding: 0, border: 'none', marginTop: 'var(--space-lg)' }}>

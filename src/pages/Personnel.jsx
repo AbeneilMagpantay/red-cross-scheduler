@@ -442,22 +442,40 @@ export default function Personnel() {
                     <div className="flex gap-md">
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">License Type</label>
-                            <input
-                                type="text"
-                                className="form-input"
+                            <select
+                                className="form-select"
                                 value={formData.license_type}
                                 onChange={(e) => setFormData({ ...formData, license_type: e.target.value })}
-                                placeholder="e.g. EMT, BLS"
-                            />
+                            >
+                                <option value="">Select License Type</option>
+                                <option value="EMT">EMT</option>
+                                <option value="BLS">BLS</option>
+                                <option value="ALS">ALS</option>
+                                <option value="N/A">N/A</option>
+                            </select>
                         </div>
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">License Expiry</label>
-                            <input
-                                type="date"
-                                className="form-input"
-                                value={formData.license_expiry}
-                                onChange={(e) => setFormData({ ...formData, license_expiry: e.target.value })}
-                            />
+                            <label className="flex items-center gap-sm mb-sm" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={formData.license_expiry === 'N/A'}
+                                    onChange={(e) => setFormData({
+                                        ...formData,
+                                        license_expiry: e.target.checked ? 'N/A' : ''
+                                    })}
+                                    style={{ width: 16, height: 16 }}
+                                />
+                                <span>N/A</span>
+                            </label>
+                            {formData.license_expiry !== 'N/A' && (
+                                <input
+                                    type="date"
+                                    className="form-input"
+                                    value={formData.license_expiry}
+                                    onChange={(e) => setFormData({ ...formData, license_expiry: e.target.value })}
+                                />
+                            )}
                         </div>
                     </div>
 

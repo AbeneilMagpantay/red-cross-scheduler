@@ -214,7 +214,7 @@ export const db = {
         *,
         requester:personnel!swap_requests_requester_id_fkey(name),
         target:personnel!swap_requests_target_id_fkey(name),
-        schedules(duty_date, start_time, end_time)
+        schedules(duty_date, start_time, end_time, title)
       `);
         if (status) query = query.eq('status', status);
         return query.order('created_at', { ascending: false });
@@ -225,8 +225,63 @@ export const db = {
         return supabase.from('swap_requests').insert(request).select().single();
     },
 
+    getScheduleById: async (id) => {
+        if (!supabase) return { data: null, error: null };
+        return supabase.from('schedules').select('*').eq('id', id).single();
+    },
+
     updateSwapRequest: async (id, status) => {
         if (!supabase) return { data: null, error: { message: 'Not configured' } };
+
+        // If approving, perform the actual swap of personnel_id
+        if (status === 'approved') {
+            try {
+                // 1. Get the swap request details
+                const { data: swapReq, error: fetchErr } = await supabase
+                    .from('swap_requests')
+                    .select('requester_id, target_id, schedule_id')
+                    .eq('id', id)
+                    .single();
+
+                if (fetchErr || !swapReq) throw fetchErr || new Error('Swap request not found');
+
+                // 2. Get the requester's schedule
+                const { data: reqSchedule } = await supabase
+                    .from('schedules')
+                    .select('*')
+                    .eq('id', swapReq.schedule_id)
+                    .single();
+
+                if (!reqSchedule) throw new Error('Schedule not found');
+
+                // 3. Find the target's schedule on the same date
+                const { data: targetSchedules } = await supabase
+                    .from('schedules')
+                    .select('*')
+                    .eq('personnel_id', swapReq.target_id)
+                    .eq('duty_date', reqSchedule.duty_date);
+
+                // 4. Perform the swap
+                // Update requester's schedule to point to target
+                await supabase
+                    .from('schedules')
+                    .update({ personnel_id: swapReq.target_id })
+                    .eq('id', swapReq.schedule_id);
+
+                // If target has a schedule on the same date, swap it to requester
+                if (targetSchedules && targetSchedules.length > 0) {
+                    await supabase
+                        .from('schedules')
+                        .update({ personnel_id: swapReq.requester_id })
+                        .eq('id', targetSchedules[0].id);
+                }
+            } catch (swapError) {
+                console.error('Error performing schedule swap:', swapError);
+                return { data: null, error: swapError };
+            }
+        }
+
+        // Update the swap request status
         return supabase
             .from('swap_requests')
             .update({ status, updated_at: new Date().toISOString() })

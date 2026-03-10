@@ -9,7 +9,8 @@ import {
     Calendar as CalendarIcon,
     Clock,
     User,
-    Trash2
+    Trash2,
+    UserPlus
 } from 'lucide-react';
 import {
     format,
@@ -37,11 +38,17 @@ export default function Schedule() {
     // Modals
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
     // State
     const [editingSchedule, setEditingSchedule] = useState(null);
     const [viewingEvent, setViewingEvent] = useState(null); // { title, date, schedules: [] }
     const [selectedDate, setSelectedDate] = useState(null);
+    const [registeringEvent, setRegisteringEvent] = useState(null);
+    const [registerForm, setRegisterForm] = useState({
+        start_time: '08:00',
+        end_time: '17:00'
+    });
     const [formData, setFormData] = useState({
         personnel_id: '',
         duty_date: '',
@@ -123,6 +130,11 @@ export default function Schedule() {
         return Object.values(groups);
     };
 
+    // Count registered volunteers (non-null personnel_id) for an event
+    const getRegisteredCount = (event) => {
+        return event.schedules.filter(s => s.personnel_id).length;
+    };
+
     const handlePrev = () => {
         if (view === 'month') {
             setCurrentDate(subMonths(currentDate, 1));
@@ -140,13 +152,16 @@ export default function Schedule() {
     };
 
     const handleDayClick = (date) => {
+        // Only admins can create new events by clicking on a day
+        if (!isAdmin) return;
+
         setEditingSchedule(null);
         setSelectedDate(date);
         setFormData({
             personnel_id: '',
             duty_date: format(date, 'yyyy-MM-dd'),
-            start_time: '08:00',
-            end_time: '17:00',
+            start_time: '',
+            end_time: '',
             title: '',
             notes: ''
         });
@@ -154,8 +169,48 @@ export default function Schedule() {
     };
 
     const handleEventClick = (event) => {
-        setViewingEvent(event);
-        setIsViewModalOpen(true);
+        if (!isAdmin) {
+            // Non-admin: check if already registered
+            const alreadyRegistered = event.schedules.some(
+                s => s.personnel_id === profile?.id
+            );
+            if (alreadyRegistered) {
+                // Just view the event details
+                setViewingEvent(event);
+                setIsViewModalOpen(true);
+            } else {
+                // Show registration modal
+                setRegisteringEvent(event);
+                setRegisterForm({ start_time: '08:00', end_time: '17:00' });
+                setIsRegisterModalOpen(true);
+            }
+        } else {
+            setViewingEvent(event);
+            setIsViewModalOpen(true);
+        }
+    };
+
+    const handleRegisterSubmit = async (e) => {
+        e.preventDefault();
+        if (!registeringEvent || !profile) return;
+
+        try {
+            await db.createSchedule({
+                personnel_id: profile.id,
+                duty_date: format(registeringEvent.date, 'yyyy-MM-dd'),
+                start_time: registerForm.start_time,
+                end_time: registerForm.end_time,
+                title: registeringEvent.title,
+                notes: ''
+            });
+
+            setIsRegisterModalOpen(false);
+            setRegisteringEvent(null);
+            loadData();
+        } catch (error) {
+            console.error('Error registering for event:', error);
+            alert('Failed to register: ' + error.message);
+        }
     };
 
     const handleEditSchedule = (schedule) => {
@@ -168,10 +223,10 @@ export default function Schedule() {
 
         setEditingSchedule(schedule);
         setFormData({
-            personnel_id: schedule.personnel_id,
+            personnel_id: schedule.personnel_id || '',
             duty_date: schedule.duty_date,
-            start_time: schedule.start_time.slice(0, 5),
-            end_time: schedule.end_time.slice(0, 5),
+            start_time: schedule.start_time?.slice(0, 5) || '',
+            end_time: schedule.end_time?.slice(0, 5) || '',
             title: schedule.title || '',
             notes: schedule.notes || ''
         });
@@ -183,11 +238,22 @@ export default function Schedule() {
         e.preventDefault();
 
         try {
+            // Build the data to submit
+            const submitData = { ...formData };
+
+            // For admin creating events: personnel_id and times are optional
+            if (!submitData.personnel_id) {
+                submitData.personnel_id = null;
+            }
+            // If no times set, use defaults
+            if (!submitData.start_time) submitData.start_time = '00:00';
+            if (!submitData.end_time) submitData.end_time = '23:59';
+
             if (editingSchedule) {
-                const { error } = await db.updateSchedule(editingSchedule.id, formData);
+                const { error } = await db.updateSchedule(editingSchedule.id, submitData);
                 if (error) throw error;
             } else {
-                await db.createSchedule(formData);
+                await db.createSchedule(submitData);
             }
 
             setIsModalOpen(false);
@@ -240,7 +306,9 @@ export default function Schedule() {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Schedule</h1>
-                    <p className="page-subtitle">Manage duty assignments and schedules</p>
+                    <p className="page-subtitle">
+                        {isAdmin ? 'Create events and manage duty assignments' : 'View events and register for shifts'}
+                    </p>
                 </div>
                 <div className="flex gap-md">
                     <div className="flex gap-sm">
@@ -298,28 +366,34 @@ export default function Schedule() {
                                 key={day.toISOString()}
                                 className={`calendar-day ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''}`}
                                 onClick={() => handleDayClick(day)}
-                                style={{ minHeight: view === 'week' ? '200px' : '100px' }}
+                                style={{
+                                    minHeight: view === 'week' ? '200px' : '100px',
+                                    cursor: isAdmin ? 'pointer' : 'default'
+                                }}
                             >
                                 <div className="calendar-day-number">{format(day, 'd')}</div>
-                                {events.slice(0, view === 'week' ? 10 : 3).map((event, idx) => (
-                                    <div
-                                        key={idx}
-                                        className="calendar-event"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEventClick(event);
-                                        }}
-                                        style={{
-                                            cursor: 'pointer',
-                                            backgroundColor: event.isGroup ? 'var(--primary)' : 'var(--secondary)',
-                                            color: event.isGroup ? 'white' : 'var(--text-primary)'
-                                        }}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span>{event.title} ({event.schedules.length})</span>
+                                {events.slice(0, view === 'week' ? 10 : 3).map((event, idx) => {
+                                    const regCount = getRegisteredCount(event);
+                                    return (
+                                        <div
+                                            key={idx}
+                                            className="calendar-event"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleEventClick(event);
+                                            }}
+                                            style={{
+                                                cursor: 'pointer',
+                                                backgroundColor: event.isGroup ? 'var(--primary)' : 'var(--secondary)',
+                                                color: event.isGroup ? 'white' : 'var(--text-primary)'
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span>{event.title} [{regCount} Registered]</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 {events.length > (view === 'week' ? 10 : 3) && (
                                     <div className="text-sm text-muted" style={{ padding: '2px 6px' }}>
                                         +{events.length - (view === 'week' ? 10 : 3)} more
@@ -342,14 +416,28 @@ export default function Schedule() {
                         {viewingEvent && format(new Date(viewingEvent.date), 'EEEE, MMMM d, yyyy')}
                     </p>
 
+                    <div className="flex items-center gap-sm mb-sm" style={{
+                        padding: 'var(--space-sm) var(--space-md)',
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--primary)'
+                    }}>
+                        <User size={16} />
+                        <span style={{ fontWeight: 600 }}>
+                            {viewingEvent ? getRegisteredCount(viewingEvent) : 0} Registered
+                        </span>
+                    </div>
+
                     <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
                         {viewingEvent?.schedules.map(schedule => (
                             <div key={schedule.id} className="card p-md mb-sm flex justify-between items-center">
                                 <div>
-                                    <div className="font-bold">{schedule.personnel?.name}</div>
-                                    <div className="text-sm text-muted">
-                                        {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)}
-                                    </div>
+                                    <div className="font-bold">{schedule.personnel?.name || 'Placeholder (No one assigned)'}</div>
+                                    {schedule.start_time && schedule.end_time && (
+                                        <div className="text-sm text-muted">
+                                            {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)}
+                                        </div>
+                                    )}
                                     {schedule.notes && (
                                         <div className="text-sm mt-xs italic">{schedule.notes}</div>
                                     )}
@@ -366,9 +454,25 @@ export default function Schedule() {
                         ))}
                     </div>
 
-                    <div className="modal-footer" style={{ padding: 0, marginTop: 'var(--space-md)' }}>
+                    {/* Non-admin: Register button if not already registered */}
+                    {!isAdmin && viewingEvent && !viewingEvent.schedules.some(s => s.personnel_id === profile?.id) && (
                         <button
                             className="btn btn-primary w-full"
+                            onClick={() => {
+                                setIsViewModalOpen(false);
+                                setRegisteringEvent(viewingEvent);
+                                setRegisterForm({ start_time: '08:00', end_time: '17:00' });
+                                setIsRegisterModalOpen(true);
+                            }}
+                        >
+                            <UserPlus size={18} style={{ marginRight: 8 }} />
+                            Register for this Event
+                        </button>
+                    )}
+
+                    <div className="modal-footer" style={{ padding: 0, marginTop: 'var(--space-md)' }}>
+                        <button
+                            className="btn btn-secondary w-full"
                             onClick={() => setIsViewModalOpen(false)}
                         >
                             Close
@@ -377,29 +481,94 @@ export default function Schedule() {
                 </div>
             </Modal>
 
-            {/* Add/Edit Schedule Modal */}
+            {/* Register for Event Modal (Non-Admin) */}
+            <Modal
+                isOpen={isRegisterModalOpen}
+                onClose={() => setIsRegisterModalOpen(false)}
+                title={`Register for: ${registeringEvent?.title || 'Event'}`}
+            >
+                <form onSubmit={handleRegisterSubmit}>
+                    <div className="form-group">
+                        <label className="form-label">Your Name</label>
+                        <input
+                            type="text"
+                            className="form-input"
+                            value={profile?.name || ''}
+                            disabled
+                            style={{ opacity: 0.7 }}
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label className="form-label">Date</label>
+                        <input
+                            type="text"
+                            className="form-input"
+                            value={registeringEvent ? format(new Date(registeringEvent.date), 'EEEE, MMMM d, yyyy') : ''}
+                            disabled
+                            style={{ opacity: 0.7 }}
+                        />
+                    </div>
+
+                    <div className="flex gap-md">
+                        <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">Your Shift Start *</label>
+                            <input
+                                type="time"
+                                className="form-input"
+                                value={registerForm.start_time}
+                                onChange={(e) => setRegisterForm({ ...registerForm, start_time: e.target.value })}
+                                required
+                            />
+                        </div>
+                        <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">Your Shift End *</label>
+                            <input
+                                type="time"
+                                className="form-input"
+                                value={registerForm.end_time}
+                                onChange={(e) => setRegisterForm({ ...registerForm, end_time: e.target.value })}
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <div className="modal-footer" style={{ padding: 0, border: 'none', marginTop: 'var(--space-lg)' }}>
+                        <button type="button" className="btn btn-secondary" onClick={() => setIsRegisterModalOpen(false)}>
+                            Cancel
+                        </button>
+                        <button type="submit" className="btn btn-primary">
+                            <UserPlus size={18} style={{ marginRight: 8 }} />
+                            Register
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
+            {/* Add/Edit Schedule Modal (Admin Only) */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => {
                     setIsModalOpen(false);
                     setEditingSchedule(null);
                 }}
-                title={editingSchedule ? "Edit Duty Assignment" : "Assign Duty"}
+                title={editingSchedule ? "Edit Duty Assignment" : "Create Event"}
             >
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
-                        <label className="form-label">Duty Event Title</label>
+                        <label className="form-label">Event Title *</label>
                         <input
                             type="text"
                             className="form-input"
                             value={formData.title}
                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                             placeholder="e.g. Medical Standby, Office Duty"
+                            required
                         />
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">Date</label>
+                        <label className="form-label">Date *</label>
                         <input
                             type="date"
                             className="form-input"
@@ -410,14 +579,13 @@ export default function Schedule() {
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">Personnel *</label>
+                        <label className="form-label">Personnel <span className="text-muted text-sm">(optional)</span></label>
                         <select
                             className="form-select"
                             value={formData.personnel_id}
                             onChange={(e) => setFormData({ ...formData, personnel_id: e.target.value })}
-                            required
                         >
-                            <option value="">Select Personnel</option>
+                            <option value="">No one assigned (volunteers will self-register)</option>
                             {personnel.map(p => (
                                 <option key={p.id} value={p.id}>{p.name} ({p.role})</option>
                             ))}
@@ -426,23 +594,21 @@ export default function Schedule() {
 
                     <div className="flex gap-md">
                         <div className="form-group" style={{ flex: 1 }}>
-                            <label className="form-label">Start Time *</label>
+                            <label className="form-label">Start Time <span className="text-muted text-sm">(optional)</span></label>
                             <input
                                 type="time"
                                 className="form-input"
                                 value={formData.start_time}
                                 onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                                required
                             />
                         </div>
                         <div className="form-group" style={{ flex: 1 }}>
-                            <label className="form-label">End Time *</label>
+                            <label className="form-label">End Time <span className="text-muted text-sm">(optional)</span></label>
                             <input
                                 type="time"
                                 className="form-input"
                                 value={formData.end_time}
                                 onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                                required
                             />
                         </div>
                     </div>
@@ -501,7 +667,7 @@ export default function Schedule() {
                                     </>
                                 ) : (
                                     <>
-                                        <Plus size={18} style={{ marginRight: 8 }} /> Assign
+                                        <Plus size={18} style={{ marginRight: 8 }} /> Create Event
                                     </>
                                 )}
                             </button>
