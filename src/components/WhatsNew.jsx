@@ -5,8 +5,8 @@ import {
     ChartNoAxesColumnIncreasing,
     History,
     LogIn,
-    Palette,
     Rocket,
+    Smartphone,
     Sparkles,
     UserRoundCheck,
     Wrench
@@ -48,9 +48,9 @@ const features = [
         description: 'Sign in more quickly with a Google account that uses the same email as your existing account.'
     },
     {
-        icon: Palette,
-        title: 'A refreshed experience',
-        description: 'Enjoy a cleaner interface, smoother animations, and more helpful interactions throughout the app.'
+        icon: Smartphone,
+        title: 'A mobile-first experience',
+        description: 'Use fixed app navigation, readable record cards, responsive controls, and mobile-friendly dialogs.'
     }
 ];
 

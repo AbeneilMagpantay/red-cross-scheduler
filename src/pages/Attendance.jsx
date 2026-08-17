@@ -111,7 +111,7 @@ export default function Attendance() {
                     <h1 className="page-title">Attendance</h1>
                     <p className="page-subtitle">Track check-ins and attendance status</p>
                 </div>
-                <div className="flex items-center gap-md">
+                <div className="flex items-center gap-md attendance-date-picker">
                     <Calendar size={20} style={{ color: 'var(--text-muted)' }} />
                     <input
                         type="date"
@@ -197,7 +197,7 @@ export default function Attendance() {
 
                                     return (
                                         <tr key={schedule.id}>
-                                            <td>
+                                            <td data-label="Personnel">
                                                 <div className="flex items-center gap-md">
                                                     <div className="user-avatar" style={{ width: 36, height: 36, fontSize: '0.85rem' }}>
                                                         {schedule.personnel?.name?.charAt(0).toUpperCase()}
@@ -208,30 +208,30 @@ export default function Attendance() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td data-label="Scheduled">
                                                 <div className="flex items-center gap-sm">
                                                     <Clock size={14} />
                                                     {schedule.start_time} - {schedule.end_time}
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td data-label="Check In">
                                                 {att?.check_in
                                                     ? format(new Date(att.check_in), 'h:mm a')
                                                     : '—'
                                                 }
                                             </td>
-                                            <td>
+                                            <td data-label="Check Out">
                                                 {att?.check_out
                                                     ? format(new Date(att.check_out), 'h:mm a')
                                                     : '—'
                                                 }
                                             </td>
-                                            <td>
+                                            <td data-label="Status">
                                                 <span className={`badge ${statusInfo.class}`}>
                                                     {statusInfo.label}
                                                 </span>
                                             </td>
-                                            <td>
+                                            <td data-label="Actions">
                                                 {!att ? (
                                                     <div className="flex gap-sm">
                                                         <button

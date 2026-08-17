@@ -306,7 +306,7 @@ export default function Schedule() {
                         {isAdmin ? 'Create events and manage duty assignments' : 'View events and register for shifts'}
                     </p>
                 </div>
-                <div className="flex gap-md">
+                <div className="flex gap-md schedule-view-toggle">
                     <div className="flex gap-sm">
                         <button
                             className={`btn ${view === 'month' ? 'btn-primary' : 'btn-secondary'}`}
@@ -366,7 +366,10 @@ export default function Schedule() {
                                     cursor: isAdmin ? 'pointer' : 'default'
                                 }}
                             >
-                                <div className="calendar-day-number">{format(day, 'd')}</div>
+                                <div className="calendar-day-number">
+                                    <span className="calendar-day-week-label">{format(day, 'EEE, MMM')}</span>
+                                    <span>{format(day, 'd')}</span>
+                                </div>
                                 {events.slice(0, view === 'week' ? 10 : 3).map((event) => {
                                     const regCount = getRegisteredCount(event);
                                     return (
@@ -508,7 +511,7 @@ export default function Schedule() {
                         />
                     </div>
 
-                    <div className="flex gap-md">
+                    <div className="flex gap-md form-row">
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">Your Shift Start *</label>
                             <input
@@ -590,7 +593,7 @@ export default function Schedule() {
                         </select>
                     </div>
 
-                    <div className="flex gap-md">
+                    <div className="flex gap-md form-row">
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">Start Time <span className="text-muted text-sm">(optional)</span></label>
                             <input

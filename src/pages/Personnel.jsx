@@ -256,7 +256,7 @@ export default function Personnel() {
 
             {/* Filters */}
             <div className="card mb-lg">
-                <div className="flex gap-md" style={{ flexWrap: 'wrap' }}>
+                <div className="flex gap-md personnel-filters" style={{ flexWrap: 'wrap' }}>
                     <div style={{ flex: '1', minWidth: '200px' }}>
                         <div style={{ position: 'relative' }}>
                             <Search size={18} style={{
@@ -325,7 +325,7 @@ export default function Personnel() {
                             <tbody>
                                 {filteredPersonnel.map((person) => (
                                     <tr key={person.id}>
-                                        <td>
+                                        <td data-label="Name">
                                             <div className="flex items-center gap-md">
                                                 <div className="user-avatar" style={{ width: 36, height: 36, fontSize: '0.85rem' }}>
                                                     {person.name.charAt(0).toUpperCase()}
@@ -333,7 +333,7 @@ export default function Personnel() {
                                                 <span>{person.name}</span>
                                             </div>
                                         </td>
-                                        <td>
+                                        <td data-label="Contact">
                                             <div className="flex flex-col gap-xs">
                                                 {person.email && (
                                                     <div className="flex items-center gap-sm text-sm">
@@ -349,18 +349,18 @@ export default function Personnel() {
                                                 )}
                                             </div>
                                         </td>
-                                        <td>
+                                        <td data-label="Role">
                                             <span className="badge badge-info" style={{ textTransform: 'capitalize' }}>
                                                 {person.role}
                                             </span>
                                         </td>
-                                        <td>{person.departments?.name || '—'}</td>
-                                        <td>
+                                        <td data-label="Batch">{person.departments?.name || '—'}</td>
+                                        <td data-label="Status">
                                             <span className={`badge ${person.is_active ? 'badge-success' : 'badge-neutral'}`}>
                                                 {person.is_active ? 'Active' : 'Inactive'}
                                             </span>
                                         </td>
-                                        <td>
+                                        <td data-label="Actions">
                                             <div className="flex gap-sm">
                                                 <button
                                                     className="btn btn-ghost btn-sm"
@@ -490,7 +490,7 @@ export default function Personnel() {
                         </select>
                     </div>
 
-                    <div className="flex gap-md">
+                    <div className="flex gap-md form-row">
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">License Type</label>
                             <select

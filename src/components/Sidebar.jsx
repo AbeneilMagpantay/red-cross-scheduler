@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logoNew from '../assets/logo_new.png';
 import {
@@ -13,7 +13,8 @@ import {
     X,
     Settings,
     FileText,
-    Sparkles
+    Sparkles,
+    Ellipsis
 } from 'lucide-react';
 
 const navItems = [
@@ -29,6 +30,7 @@ const navItems = [
 export default function Sidebar({ onOpenWhatsNew }) {
     const { profile, signOut, isAdmin } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
+    const location = useLocation();
 
     // Close sidebar on window resize to desktop
     useEffect(() => {
@@ -41,22 +43,46 @@ export default function Sidebar({ onOpenWhatsNew }) {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    useEffect(() => {
+        if (!isOpen) return undefined;
+
+        document.body.classList.add('mobile-navigation-open');
+        return () => document.body.classList.remove('mobile-navigation-open');
+    }, [isOpen]);
+
     const handleSignOut = async () => {
         await signOut();
     };
 
     const filteredNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
+    const mobileNavPaths = ['/', '/schedule', '/attendance', '/records'];
+    const mobileNavItems = filteredNavItems.filter(item => mobileNavPaths.includes(item.path));
+    const activeItem = filteredNavItems.find(item => item.path === location.pathname);
+    const isMoreActive = !mobileNavPaths.includes(location.pathname);
 
     return (
         <>
-            {/* Mobile Menu Toggle */}
-            <button
-                className="mobile-menu-toggle"
-                onClick={() => setIsOpen(!isOpen)}
-                aria-label="Toggle menu"
-            >
-                {isOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
+            <header className="mobile-app-header">
+                <div className="mobile-app-brand">
+                    <img src={logoNew} alt="" />
+                    <div>
+                        <span>RCY Scheduler</span>
+                        <strong>{activeItem?.label || 'Workspace'}</strong>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    className="mobile-header-menu"
+                    onClick={() => setIsOpen(true)}
+                    aria-label="Open account and more navigation"
+                    aria-expanded={isOpen}
+                >
+                    <span className="user-avatar" aria-hidden="true">
+                        {profile?.name?.charAt(0).toUpperCase() || 'U'}
+                    </span>
+                    <Menu size={18} />
+                </button>
+            </header>
 
             {/* Overlay for mobile */}
             {isOpen && (
@@ -68,7 +94,15 @@ export default function Sidebar({ onOpenWhatsNew }) {
                 />
             )}
 
-            <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+            <aside className={`sidebar ${isOpen ? 'open' : ''}`} aria-label="Main navigation">
+                <button
+                    type="button"
+                    className="mobile-sidebar-close"
+                    onClick={() => setIsOpen(false)}
+                    aria-label="Close navigation menu"
+                >
+                    <X size={20} />
+                </button>
                 <div className="sidebar-logo">
                     <div className="sidebar-brand-mark">
                         <img src={logoNew} alt="" />
@@ -123,6 +157,34 @@ export default function Sidebar({ onOpenWhatsNew }) {
                     </button>
                 </div>
             </aside>
+
+            <nav className="mobile-bottom-nav" aria-label="Primary navigation">
+                {mobileNavItems.map((item) => {
+                    const Icon = item.icon;
+                    const mobileLabel = item.path === '/records' ? 'Records' : item.label;
+                    return (
+                        <NavLink
+                            key={item.path}
+                            to={item.path}
+                            end={item.path === '/'}
+                            className={({ isActive }) => `mobile-bottom-link ${isActive ? 'active' : ''}`}
+                            onClick={() => setIsOpen(false)}
+                        >
+                            <Icon size={21} />
+                            <span>{mobileLabel}</span>
+                        </NavLink>
+                    );
+                })}
+                <button
+                    type="button"
+                    className={`mobile-bottom-link ${isMoreActive || isOpen ? 'active' : ''}`}
+                    onClick={() => setIsOpen(true)}
+                    aria-label="Open more navigation"
+                >
+                    <Ellipsis size={22} />
+                    <span>More</span>
+                </button>
+            </nav>
         </>
     );
 }

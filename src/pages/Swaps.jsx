@@ -154,7 +154,7 @@ export default function Swaps() {
 
             {/* Filters */}
             <div className="card mb-lg">
-                <div className="flex gap-md">
+                <div className="flex gap-md status-filter-grid">
                     {['all', 'pending', 'approved', 'rejected'].map(status => (
                         <button
                             key={status}
@@ -200,7 +200,7 @@ export default function Swaps() {
 
                                     return (
                                         <tr key={request.id}>
-                                            <td>
+                                            <td data-label="Requester">
                                                 <div className="flex items-center gap-md">
                                                     <div className="user-avatar" style={{ width: 36, height: 36, fontSize: '0.85rem' }}>
                                                         {request.requester?.name?.charAt(0).toUpperCase()}
@@ -208,13 +208,13 @@ export default function Swaps() {
                                                     <span>{request.requester?.name}</span>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td data-label="Target">
                                                 <div className="flex items-center gap-md">
                                                     <User size={16} />
                                                     <span>{request.target?.name}</span>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td data-label="Schedule">
                                                 {request.schedules && (
                                                     <div className="flex flex-col gap-xs">
                                                         <div className="flex items-center gap-sm">
@@ -228,16 +228,16 @@ export default function Swaps() {
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="text-sm text-muted">
+                                            <td data-label="Requested" className="text-sm text-muted">
                                                 {format(new Date(request.created_at), 'MMM d, h:mm a')}
                                             </td>
-                                            <td>
+                                            <td data-label="Status">
                                                 <span className={`badge ${statusInfo.class}`}>
                                                     {statusInfo.label}
                                                 </span>
                                             </td>
                                             {isAdmin && (
-                                                <td>
+                                                <td data-label="Actions">
                                                     {request.status === 'pending' && (
                                                         <div className="flex gap-sm">
                                                             <button

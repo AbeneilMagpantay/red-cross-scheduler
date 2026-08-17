@@ -237,24 +237,24 @@ export default function Records() {
                                     <tbody>
                                         {record.attendees.map((attendee) => (
                                             <tr key={attendee.id || `${attendee.scheduleId}-${attendee.personnelId}`}>
-                                                <td>
+                                                <td data-label="Personnel">
                                                     <div className="flex items-center gap-sm">
                                                         <User size={16} />
                                                         {attendee.name}
                                                     </div>
                                                 </td>
-                                                <td>{attendee.scheduledTime}</td>
-                                                <td>
+                                                <td data-label="Scheduled">{attendee.scheduledTime}</td>
+                                                <td data-label="Check In">
                                                     {attendee.checkIn
                                                         ? format(new Date(attendee.checkIn), 'h:mm a')
                                                         : '—'}
                                                 </td>
-                                                <td>
+                                                <td data-label="Check Out">
                                                     {attendee.checkOut
                                                         ? format(new Date(attendee.checkOut), 'h:mm a')
                                                         : '—'}
                                                 </td>
-                                                <td>
+                                                <td data-label="Status">
                                                     <span className={`badge ${getStatusClass(attendee.status)}`}>
                                                         {getStatusLabel(attendee.status)}
                                                     </span>
