@@ -1,12 +1,38 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { format, parseISO } from 'date-fns';
+import {
+    Calendar,
+    Clock,
+    FileText,
+    Percent,
+    Search,
+    Timer,
+    User,
+    UserCheck
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/supabase';
-import { format } from 'date-fns';
-import { FileText, Search, Clock, Calendar, User } from 'lucide-react';
+import { groupAttendanceByEvent, summarizePersonnelAttendance } from '../lib/dutyRecords';
+
+const getStatusClass = (status) => {
+    if (status === 'present') return 'badge-success';
+    if (status === 'late') return 'badge-warning';
+    if (status === 'absent') return 'badge-error';
+    if (status === 'excused') return 'badge-info';
+    return 'badge-neutral';
+};
+
+const getStatusLabel = (status) => {
+    const value = status || 'pending';
+    return value.charAt(0).toUpperCase() + value.slice(1);
+};
 
 export default function Records() {
-    const [records, setRecords] = useState([]);
+    const { profile } = useAuth();
+    const [attendanceRecords, setAttendanceRecords] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [viewMode, setViewMode] = useState('all');
 
     useEffect(() => {
         loadData();
@@ -16,43 +42,7 @@ export default function Records() {
         try {
             const { data, error } = await db.getAttendance();
             if (error) throw error;
-
-            // Group by Schedule (Event)
-            // Key: schedule_id or (date + title + time)
-            const grouped = {};
-
-            data.forEach(record => {
-                if (!record.schedules) return; // Skip if schedule deleted
-
-                const scheduleId = record.schedule_id;
-                const dateStr = record.schedules.duty_date;
-                const title = record.schedules.title || 'Untitled Duty';
-                const time = `${record.schedules.start_time.slice(0, 5)} - ${record.schedules.end_time.slice(0, 5)}`;
-
-                const key = `${dateStr}-${title}-${time}`; // grouping key
-
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        id: scheduleId, // using one id, but really it's a generated group
-                        title: title,
-                        date: dateStr,
-                        time: time,
-                        attendees: []
-                    };
-                }
-
-                grouped[key].attendees.push({
-                    name: record.personnel?.name || 'Unknown',
-                    checkIn: record.check_in,
-                    checkOut: record.check_out,
-                    status: record.status,
-                    notes: record.notes
-                });
-            });
-
-            // Convert back to array
-            setRecords(Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date)));
-
+            setAttendanceRecords(data || []);
         } catch (error) {
             console.error('Error loading records:', error);
         } finally {
@@ -60,10 +50,37 @@ export default function Records() {
         }
     };
 
-    const filteredRecords = records.filter(record =>
-        record.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.date.includes(searchTerm)
+    const records = useMemo(
+        () => groupAttendanceByEvent(attendanceRecords),
+        [attendanceRecords]
     );
+
+    const personalSummary = useMemo(
+        () => summarizePersonnelAttendance(attendanceRecords, profile?.id),
+        [attendanceRecords, profile?.id]
+    );
+
+    const filteredRecords = useMemo(() => {
+        const query = searchTerm.trim().toLocaleLowerCase();
+
+        return records
+            .map((record) => ({
+                ...record,
+                attendees: viewMode === 'mine'
+                    ? record.attendees.filter((attendee) => attendee.personnelId === profile?.id)
+                    : record.attendees
+            }))
+            .filter((record) => {
+                if (record.attendees.length === 0) return false;
+                if (!query) return true;
+
+                return record.title.toLocaleLowerCase().includes(query)
+                    || record.date.includes(query)
+                    || record.attendees.some((attendee) =>
+                        attendee.name.toLocaleLowerCase().includes(query)
+                    );
+            });
+    }, [profile?.id, records, searchTerm, viewMode]);
 
     if (loading) {
         return (
@@ -78,29 +95,96 @@ export default function Records() {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Duty Records</h1>
-                    <p className="page-subtitle">History of duties and attendance</p>
+                    <p className="page-subtitle">Event attendance history and your personal duty summary</p>
                 </div>
             </div>
 
-            <div className="card mb-lg">
-                <div className="flex gap-md">
-                    <div style={{ flex: '1', position: 'relative' }}>
-                        <Search size={18} style={{
-                            position: 'absolute',
-                            left: '12px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            color: 'var(--text-muted)'
-                        }} />
-                        <input
-                            type="text"
-                            className="form-input"
-                            placeholder="Search by event title or date..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            style={{ paddingLeft: '40px' }}
-                        />
+            <section className="card mb-lg" aria-labelledby="personal-duty-summary">
+                <div className="card-header">
+                    <div>
+                        <h2 id="personal-duty-summary" className="card-title">My Duty Summary</h2>
+                        <p className="card-subtitle">
+                            {personalSummary.decided > 0
+                                ? `${personalSummary.attendanceRate}% attendance rate across recorded duties`
+                                : 'Your attendance totals will appear as duties are recorded'}
+                        </p>
                     </div>
+                </div>
+
+                <div className="duty-summary-grid">
+                    <div className="duty-summary-item">
+                        <div className="stat-icon green duty-summary-icon">
+                            <UserCheck size={20} />
+                        </div>
+                        <div>
+                            <strong>{personalSummary.attended}</strong>
+                            <span>Duties Attended</span>
+                        </div>
+                    </div>
+                    <div className="duty-summary-item">
+                        <div className="stat-icon blue duty-summary-icon">
+                            <Percent size={20} />
+                        </div>
+                        <div>
+                            <strong>{personalSummary.attendanceRate}%</strong>
+                            <span>Attendance Rate</span>
+                        </div>
+                    </div>
+                    <div className="duty-summary-item">
+                        <div className="stat-icon orange duty-summary-icon">
+                            <Clock size={20} />
+                        </div>
+                        <div>
+                            <strong>{personalSummary.late}</strong>
+                            <span>Late Arrivals</span>
+                        </div>
+                    </div>
+                    <div className="duty-summary-item">
+                        <div className="stat-icon red duty-summary-icon">
+                            <Timer size={20} />
+                        </div>
+                        <div>
+                            <strong>{personalSummary.loggedHours}</strong>
+                            <span>Hours Logged</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p className="duty-summary-details text-sm text-muted">
+                    {personalSummary.present} on time · {personalSummary.absent} absent · {personalSummary.excused} excused · {personalSummary.pending} pending
+                </p>
+            </section>
+
+            <div className="card mb-lg records-toolbar">
+                <div className="records-search">
+                    <Search size={18} aria-hidden="true" />
+                    <input
+                        type="search"
+                        className="form-input"
+                        placeholder="Search by event, date, or personnel..."
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                    />
+                </div>
+
+                <div className="records-view-toggle" role="group" aria-label="Attendance record view">
+                    <button
+                        type="button"
+                        className={`btn btn-sm ${viewMode === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setViewMode('all')}
+                        aria-pressed={viewMode === 'all'}
+                    >
+                        All Attendance
+                    </button>
+                    <button
+                        type="button"
+                        className={`btn btn-sm ${viewMode === 'mine' ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setViewMode('mine')}
+                        aria-pressed={viewMode === 'mine'}
+                    >
+                        <User size={16} />
+                        My Attendance
+                    </button>
                 </div>
             </div>
 
@@ -109,62 +193,70 @@ export default function Records() {
                     <div className="empty-state card">
                         <FileText size={48} />
                         <h3>No Records Found</h3>
-                        <p>Attendance records will appear here once duties are logs.</p>
+                        <p>
+                            {viewMode === 'mine'
+                                ? 'No personal attendance records match your search.'
+                                : 'Attendance records will appear here once duties are logged.'}
+                        </p>
                     </div>
                 ) : (
-                    filteredRecords.map((record, index) => (
-                        <div key={index} className="card">
-                            <div className="flex justify-between items-start mb-md pb-sm" style={{ borderBottom: '1px solid var(--border)' }}>
+                    filteredRecords.map((record) => (
+                        <article key={record.id} className="card duty-record-card">
+                            <div className="duty-record-header">
                                 <div>
-                                    <h3 style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{record.title}</h3>
-                                    <div className="flex gap-md text-sm text-muted">
+                                    <h3>{record.title}</h3>
+                                    <div className="duty-record-meta text-sm text-muted">
                                         <span className="flex items-center gap-xs">
                                             <Calendar size={14} />
-                                            {format(new Date(record.date), 'MMMM d, yyyy')}
+                                            {format(parseISO(record.date), 'MMMM d, yyyy')}
                                         </span>
-                                        <span className="flex items-center gap-xs">
+                                        <span className="record-time-ranges">
                                             <Clock size={14} />
-                                            {record.time}
+                                            {record.timeRanges.map((time) => (
+                                                <span key={time} className="badge badge-neutral">{time}</span>
+                                            ))}
                                         </span>
                                     </div>
                                 </div>
                                 <div className="badge badge-info text-sm">
-                                    {record.attendees.length} Attendees
+                                    {record.attendees.length} {record.attendees.length === 1 ? 'Record' : 'Records'}
                                 </div>
                             </div>
 
                             <div className="table-container">
-                                <table className="table">
+                                <table className="table duty-record-table">
                                     <thead>
                                         <tr>
                                             <th>Personnel</th>
+                                            <th>Scheduled Time</th>
                                             <th>Check In</th>
                                             <th>Check Out</th>
                                             <th>Status</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {record.attendees.map((attendee, idx) => (
-                                            <tr key={idx}>
+                                        {record.attendees.map((attendee) => (
+                                            <tr key={attendee.id || `${attendee.scheduleId}-${attendee.personnelId}`}>
                                                 <td>
                                                     <div className="flex items-center gap-sm">
                                                         <User size={16} />
                                                         {attendee.name}
                                                     </div>
                                                 </td>
+                                                <td>{attendee.scheduledTime}</td>
                                                 <td>
-                                                    {attendee.checkIn ? format(new Date(attendee.checkIn), 'h:mm a') : '—'}
+                                                    {attendee.checkIn
+                                                        ? format(new Date(attendee.checkIn), 'h:mm a')
+                                                        : '—'}
                                                 </td>
                                                 <td>
-                                                    {attendee.checkOut ? format(new Date(attendee.checkOut), 'h:mm a') : '—'}
+                                                    {attendee.checkOut
+                                                        ? format(new Date(attendee.checkOut), 'h:mm a')
+                                                        : '—'}
                                                 </td>
                                                 <td>
-                                                    <span className={`badge ${attendee.status === 'present' ? 'badge-success' :
-                                                            attendee.status === 'late' ? 'badge-warning' :
-                                                                attendee.status === 'absent' ? 'badge-error' :
-                                                                    'badge-neutral'
-                                                        }`}>
-                                                        {attendee.status}
+                                                    <span className={`badge ${getStatusClass(attendee.status)}`}>
+                                                        {getStatusLabel(attendee.status)}
                                                     </span>
                                                 </td>
                                             </tr>
@@ -172,7 +264,7 @@ export default function Records() {
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
+                        </article>
                     ))
                 )}
             </div>

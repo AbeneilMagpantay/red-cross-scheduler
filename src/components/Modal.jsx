@@ -1,6 +1,35 @@
+import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 
 export default function Modal({ isOpen, onClose, title, children, size = 'md' }) {
+    const titleId = useId();
+    const closeButtonRef = useRef(null);
+    const onCloseRef = useRef(onClose);
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
+
+    useEffect(() => {
+        if (!isOpen) return undefined;
+
+        const previouslyFocused = document.activeElement;
+        const previousOverflow = document.body.style.overflow;
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') onCloseRef.current();
+        };
+
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', handleKeyDown);
+        closeButtonRef.current?.focus();
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+            previouslyFocused?.focus?.();
+        };
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const handleOverlayClick = (e) => {
@@ -18,10 +47,22 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
 
     return (
         <div className="modal-overlay" onClick={handleOverlayClick}>
-            <div className="modal" style={{ maxWidth: sizeClasses[size] }}>
+            <div
+                className="modal"
+                style={{ maxWidth: sizeClasses[size] }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+            >
                 <div className="modal-header">
-                    <h2 className="modal-title">{title}</h2>
-                    <button className="modal-close" onClick={onClose}>
+                    <h2 id={titleId} className="modal-title">{title}</h2>
+                    <button
+                        ref={closeButtonRef}
+                        type="button"
+                        className="modal-close"
+                        onClick={onClose}
+                        aria-label="Close dialog"
+                    >
                         <X size={20} />
                     </button>
                 </div>

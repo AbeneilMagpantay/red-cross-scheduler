@@ -1,0 +1,17 @@
+{
+  "name": "Ateneo Red Cross Youth Scheduler",
+  "short_name": "RCY Scheduler",
+  "description": "Deployment scheduling and attendance for Ateneo Red Cross Youth.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#ed1b2e",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -3,6 +3,9 @@ import { auth, db, isConfigured } from '../lib/supabase';
 
 const AuthContext = createContext({});
 
+// The hook intentionally lives beside its provider to keep authentication
+// consumption consistent throughout this small application.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }) {
@@ -95,6 +98,7 @@ export function AuthProvider({ children }) {
             const result = await auth.signIn(email, password);
             return result;
         },
+        signInWithGoogle: () => auth.signInWithGoogle(),
         signUp: (email, password, meta) => auth.signUp(email, password, meta),
         signOut: async () => {
             await auth.signOut();
@@ -102,7 +106,8 @@ export function AuthProvider({ children }) {
             setProfile(null);
         },
         updatePassword: (newPassword) => auth.updatePassword(newPassword),
-        isAdmin: profile?.role === 'admin'
+        isAdmin: profile?.role === 'admin',
+        configError: !isConfigured
     };
 
     return (

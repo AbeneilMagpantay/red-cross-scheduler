@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logoNew from '../assets/logo_new.png';
 import {
@@ -12,7 +12,8 @@ import {
     Menu,
     X,
     Settings,
-    FileText
+    FileText,
+    Sparkles
 } from 'lucide-react';
 
 const navItems = [
@@ -25,15 +26,9 @@ const navItems = [
     { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onOpenWhatsNew }) {
     const { profile, signOut, isAdmin } = useAuth();
-    const location = useLocation();
     const [isOpen, setIsOpen] = useState(false);
-
-    // Close sidebar on route change (mobile)
-    useEffect(() => {
-        setIsOpen(false);
-    }, [location.pathname]);
 
     // Close sidebar on window resize to desktop
     useEffect(() => {
@@ -65,18 +60,22 @@ export default function Sidebar() {
 
             {/* Overlay for mobile */}
             {isOpen && (
-                <div
+                <button
+                    type="button"
                     className="sidebar-overlay"
                     onClick={() => setIsOpen(false)}
+                    aria-label="Close navigation menu"
                 />
             )}
 
             <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
                 <div className="sidebar-logo">
-                    <img src={logoNew} alt="Logo" style={{ height: 40, width: 'auto' }} />
-                    <div style={{ marginLeft: '10px' }}>
-                        <h1 style={{ fontSize: '1rem', lineHeight: '1.2' }}>Ateneo College</h1>
-                        <span style={{ fontSize: '0.8rem' }}>Red Cross Youth</span>
+                    <div className="sidebar-brand-mark">
+                        <img src={logoNew} alt="" />
+                    </div>
+                    <div className="sidebar-brand-copy">
+                        <h1>Ateneo College</h1>
+                        <span>Red Cross Youth</span>
                     </div>
                 </div>
 
@@ -88,6 +87,7 @@ export default function Sidebar() {
                                 key={item.path}
                                 to={item.path}
                                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                                onClick={() => setIsOpen(false)}
                             >
                                 <Icon size={20} />
                                 {item.label}
@@ -97,6 +97,17 @@ export default function Sidebar() {
                 </nav>
 
                 <div className="sidebar-footer">
+                    <button
+                        type="button"
+                        className="nav-link whats-new-trigger"
+                        onClick={() => {
+                            setIsOpen(false);
+                            onOpenWhatsNew();
+                        }}
+                    >
+                        <Sparkles size={20} />
+                        What's New
+                    </button>
                     <div className="user-info">
                         <div className="user-avatar">
                             {profile?.name?.charAt(0).toUpperCase() || 'U'}

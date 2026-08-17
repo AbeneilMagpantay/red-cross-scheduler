@@ -9,7 +9,7 @@ import {
     Clock,
     AlertCircle
 } from 'lucide-react';
-import { format, isToday, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 
 export default function Dashboard() {
     const { profile } = useAuth();
@@ -71,13 +71,15 @@ export default function Dashboard() {
 
     return (
         <div className="dashboard">
-            <div className="page-header">
+            <div className="page-header dashboard-hero">
                 <div>
+                    <span className="page-eyebrow">Operations overview</span>
                     <h1 className="page-title">{getGreeting()}, {profile?.name?.split(' ')[0] || 'User'}</h1>
                     <p className="page-subtitle">
                         {format(new Date(), 'EEEE, MMMM d, yyyy')}
                     </p>
                 </div>
+                <div className="workspace-status"><span /> Live workspace</div>
             </div>
 
             {/* Stats Grid */}
@@ -124,7 +126,7 @@ export default function Dashboard() {
             </div>
 
             {/* Today's Schedule */}
-            <div className="card">
+            <div className="card dashboard-roster">
                 <div className="card-header">
                     <div>
                         <h3 className="card-title">Today's Duty Roster</h3>

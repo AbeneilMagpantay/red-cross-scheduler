@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { db } from '../lib/supabase';
 import Modal from '../components/Modal';
 import {
@@ -18,11 +18,7 @@ export default function Attendance() {
     const [attendance, setAttendance] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        loadData();
-    }, [selectedDate]);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoading(true);
         try {
             const { data: scheduleData } = await db.getSchedules(selectedDate, selectedDate);
@@ -35,7 +31,11 @@ export default function Attendance() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [selectedDate]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const getAttendanceForSchedule = (scheduleId) => {
         return attendance.find(a => a.schedule_id === scheduleId);

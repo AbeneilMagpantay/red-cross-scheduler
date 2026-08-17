@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { db } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
@@ -27,11 +27,7 @@ export default function Swaps() {
         reason: ''
     });
 
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
             const [swapsRes, personnelRes] = await Promise.all([
                 db.getSwapRequests(),
@@ -51,7 +47,11 @@ export default function Swaps() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [profile?.id]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const handleApprove = async (id) => {
         try {

@@ -5,7 +5,8 @@ import {
     Plus,
     Search,
     Edit2,
-    Trash2,
+    Archive,
+    RotateCcw,
     Phone,
     Mail,
     User,
@@ -14,6 +15,14 @@ import {
     CheckCircle
 } from 'lucide-react';
 
+const getPersonnelData = (formData) => {
+    const personnelData = { ...formData };
+    delete personnelData.password;
+    delete personnelData.createAccount;
+    if (personnelData.email) personnelData.email = personnelData.email.trim().toLowerCase();
+    return personnelData;
+};
+
 export default function Personnel() {
     const [personnel, setPersonnel] = useState([]);
     const [departments, setDepartments] = useState([]);
@@ -21,6 +30,7 @@ export default function Personnel() {
     const [saving, setSaving] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterDept, setFilterDept] = useState('');
+    const [filterStatus, setFilterStatus] = useState('all');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
     const [error, setError] = useState('');
@@ -119,8 +129,7 @@ export default function Personnel() {
         try {
             if (editingPerson) {
                 // Update existing personnel
-                const { password, createAccount, ...updateData } = formData;
-                await db.updatePersonnel(editingPerson.id, updateData);
+                await db.updatePersonnel(editingPerson.id, getPersonnelData(formData));
                 setSuccess('Personnel updated successfully!');
             } else {
                 // Create new personnel
@@ -134,7 +143,7 @@ export default function Personnel() {
 
                     // Call Auth SignUp
                     const { data: authData, error: authError } = await auth.signUp(
-                        formData.email,
+                        formData.email.trim().toLowerCase(),
                         formData.password,
                         { name: formData.name }
                     );
@@ -146,9 +155,8 @@ export default function Personnel() {
                     }
 
                     // Create personnel record with the auth user's ID
-                    const { password, createAccount, ...personnelData } = formData;
                     const personnelWithId = {
-                        ...personnelData,
+                        ...getPersonnelData(formData),
                         id: authData.user?.id
                     };
 
@@ -162,8 +170,7 @@ export default function Personnel() {
                     setSuccess(`Account created! Temporary password: ${formData.password}`);
                 } else {
                     // Create personnel without auth account
-                    const { password, createAccount, ...personnelData } = formData;
-                    await db.createPersonnel(personnelData);
+                    await db.createPersonnel(getPersonnelData(formData));
                     setSuccess('Personnel added successfully!');
                 }
             }
@@ -182,21 +189,37 @@ export default function Personnel() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!confirm('Are you sure you want to delete this personnel? This will also remove their schedule and attendance records.')) return;
+    const handleArchive = async (person) => {
+        if (!confirm(`Archive ${person.name}? They will lose access, but all schedules and attendance history will be preserved.`)) return;
 
         try {
-            const { error } = await db.deletePersonnel(id);
+            const { error } = await db.archivePersonnel(person.id);
             if (error) {
-                alert('Failed to delete personnel: ' + error.message);
-                console.error('Delete error:', error);
+                alert('Failed to archive personnel: ' + error.message);
+                console.error('Archive error:', error);
                 return;
             }
-            // Show success toast or just reload
             loadData();
         } catch (error) {
-            console.error('Error deleting personnel:', error);
-            alert('An unexpected error occurred while deleting.');
+            console.error('Error archiving personnel:', error);
+            alert('An unexpected error occurred while archiving.');
+        }
+    };
+
+    const handleRestore = async (person) => {
+        if (!confirm(`Restore ${person.name} as active personnel?`)) return;
+
+        try {
+            const { error } = await db.restorePersonnel(person.id);
+            if (error) {
+                alert('Failed to restore personnel: ' + error.message);
+                console.error('Restore error:', error);
+                return;
+            }
+            loadData();
+        } catch (error) {
+            console.error('Error restoring personnel:', error);
+            alert('An unexpected error occurred while restoring.');
         }
     };
 
@@ -204,7 +227,10 @@ export default function Personnel() {
         const matchesSearch = person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             person.email?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesDept = !filterDept || person.department_id === filterDept;
-        return matchesSearch && matchesDept;
+        const matchesStatus = filterStatus === 'all'
+            || (filterStatus === 'active' && person.is_active)
+            || (filterStatus === 'archived' && !person.is_active);
+        return matchesSearch && matchesDept && matchesStatus;
     });
 
     if (loading) {
@@ -220,7 +246,7 @@ export default function Personnel() {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Personnel Management</h1>
-                    <p className="page-subtitle">Manage all volunteers and staff members</p>
+                    <p className="page-subtitle">Manage active and archived volunteers and staff members</p>
                 </div>
                 <button className="btn btn-primary" onClick={() => handleOpenModal()}>
                     <Plus size={18} />
@@ -261,6 +287,17 @@ export default function Personnel() {
                             <option key={dept.id} value={dept.id}>{dept.name}</option>
                         ))}
                     </select>
+                    <select
+                        className="form-select"
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        style={{ width: '160px' }}
+                        aria-label="Filter personnel status"
+                    >
+                        <option value="all">All Statuses</option>
+                        <option value="active">Active</option>
+                        <option value="archived">Archived</option>
+                    </select>
                 </div>
             </div>
 
@@ -282,7 +319,7 @@ export default function Personnel() {
                                     <th>Role</th>
                                     <th>Batch Name</th>
                                     <th>Status</th>
-                                    <th style={{ width: '100px' }}>Actions</th>
+                                    <th style={{ width: '120px' }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -331,13 +368,27 @@ export default function Personnel() {
                                                 >
                                                     <Edit2 size={16} />
                                                 </button>
-                                                <button
-                                                    className="btn btn-ghost btn-sm"
-                                                    onClick={() => handleDelete(person.id)}
-                                                    style={{ color: 'var(--error)' }}
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                {person.is_active ? (
+                                                    <button
+                                                        className="btn btn-ghost btn-sm"
+                                                        onClick={() => handleArchive(person)}
+                                                        style={{ color: 'var(--warning)' }}
+                                                        title="Archive personnel"
+                                                        aria-label={`Archive ${person.name}`}
+                                                    >
+                                                        <Archive size={16} />
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        className="btn btn-ghost btn-sm"
+                                                        onClick={() => handleRestore(person)}
+                                                        style={{ color: 'var(--success)' }}
+                                                        title="Restore personnel"
+                                                        aria-label={`Restore ${person.name}`}
+                                                    >
+                                                        <RotateCcw size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
