@@ -53,7 +53,7 @@ export default function ResetPassword() {
                 setMessage({ type: 'success', text: 'Password updated successfully! Redirecting...' });
                 setTimeout(() => navigate('/'), 2000);
             }
-        } catch (error) {
+        } catch {
             setMessage({ type: 'error', text: 'An unexpected error occurred.' });
         } finally {
             setLoading(false);

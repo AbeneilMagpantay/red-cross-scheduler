@@ -1,0 +1,2 @@
+[functions.send-deployment-notifications]
+verify_jwt = true

@@ -28,6 +28,19 @@ export const auth = {
         if (!supabase) return { data: null, error: { message: 'Not configured' } };
         return supabase.auth.signInWithPassword({ email, password });
     },
+    signInWithGoogle: async () => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: `${window.location.origin}/`,
+                queryParams: {
+                    access_type: 'offline',
+                    prompt: 'select_account'
+                }
+            }
+        });
+    },
     signOut: async () => {
         if (!supabase) return { error: null };
         return supabase.auth.signOut();
@@ -83,8 +96,8 @@ export const db = {
         return supabase
             .from('personnel')
             .select('*, departments(name)')
-            .eq('email', email)
-            .single();
+            .ilike('email', email.trim())
+            .maybeSingle();
     },
 
     createPersonnel: async (personnel) => {
@@ -97,35 +110,24 @@ export const db = {
         return supabase.from('personnel').update(updates).eq('id', id).select().single();
     },
 
-    deletePersonnel: async (id) => {
-        if (!supabase) return { error: { message: 'Not configured' } };
+    archivePersonnel: async (id) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase
+            .from('personnel')
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select()
+            .single();
+    },
 
-        // Manual Cascade Delete
-        try {
-            // 1. Delete associated Swap Requests (as requester or target)
-            await supabase.from('swap_requests').delete().or(`requester_id.eq.${id},target_id.eq.${id}`);
-
-            // 2. Delete Attendance records
-            await supabase.from('attendance').delete().eq('personnel_id', id);
-
-            // 3. Delete Schedules (which will trigger its own cascade if we did it recursively, but let's be explicit)
-            // First delete attendance/swaps linked to these schedules
-            const { data: schedules } = await supabase.from('schedules').select('id').eq('personnel_id', id);
-            if (schedules && schedules.length > 0) {
-                const scheduleIds = schedules.map(s => s.id);
-                await supabase.from('attendance').delete().in('schedule_id', scheduleIds);
-                await supabase.from('swap_requests').delete().in('schedule_id', scheduleIds);
-                await supabase.from('schedules').delete().in('id', scheduleIds);
-            }
-
-            // 4. Finally delete the personnel
-            const { error } = await supabase.from('personnel').delete().eq('id', id);
-            return { error };
-        } catch (err) {
-            console.error('Manual cascade delete error:', err);
-            // Fallback to simple delete in case constraints are set up
-            return supabase.from('personnel').delete().eq('id', id);
-        }
+    restorePersonnel: async (id) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase
+            .from('personnel')
+            .update({ is_active: true, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select()
+            .single();
     },
 
     // ===== DEPARTMENTS =====
@@ -166,6 +168,13 @@ export const db = {
             .single();
     },
 
+    sendDeploymentNotification: async (scheduleId) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.functions.invoke('send-deployment-notifications', {
+            body: { schedule_id: scheduleId }
+        });
+    },
+
     updateSchedule: async (id, updates) => {
         if (!supabase) return { data: null, error: { message: 'Not configured' } };
         return supabase.from('schedules').update(updates).eq('id', id).select().single();
@@ -180,7 +189,7 @@ export const db = {
             await supabase.from('swap_requests').delete().eq('schedule_id', id);
             const { error } = await supabase.from('schedules').delete().eq('id', id);
             return { error };
-        } catch (err) {
+        } catch {
             return supabase.from('schedules').delete().eq('id', id);
         }
     },

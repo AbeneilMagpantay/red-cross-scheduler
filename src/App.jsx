@@ -1,16 +1,30 @@
+import { lazy, Suspense, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Personnel from './pages/Personnel';
-import Schedule from './pages/Schedule';
-import Attendance from './pages/Attendance';
-import Records from './pages/Records';
-import Swaps from './pages/Swaps';
-import Settings from './pages/Settings';
-import ResetPassword from './pages/ResetPassword';
+import DeploymentNotifications from './components/DeploymentNotifications';
+import WhatsNew from './components/WhatsNew';
+import { hasSeenWhatsNew, rememberWhatsNewSeen } from './lib/whatsNew';
 import './index.css';
+
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Personnel = lazy(() => import('./pages/Personnel'));
+const Schedule = lazy(() => import('./pages/Schedule'));
+const Attendance = lazy(() => import('./pages/Attendance'));
+const Records = lazy(() => import('./pages/Records'));
+const Swaps = lazy(() => import('./pages/Swaps'));
+const Settings = lazy(() => import('./pages/Settings'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+
+function PageLoader() {
+  return (
+    <div className="route-loader" role="status" aria-label="Loading page">
+      <div className="loading" />
+      <span>Loading...</span>
+    </div>
+  );
+}
 
 // Protected Route wrapper
 function ProtectedRoute({ children, adminOnly = false }) {
@@ -81,9 +95,21 @@ function ProtectedRoute({ children, adminOnly = false }) {
 
 // Layout with Sidebar
 function AppLayout({ children }) {
+  const { user } = useAuth();
+  const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(
+    () => Boolean(user?.id) && !hasSeenWhatsNew(user.id)
+  );
+
+  const closeWhatsNew = () => {
+    rememberWhatsNewSeen(user?.id);
+    setIsWhatsNewOpen(false);
+  };
+
   return (
     <div className="app-layout">
-      <Sidebar />
+      <Sidebar onOpenWhatsNew={() => setIsWhatsNewOpen(true)} />
+      <DeploymentNotifications />
+      <WhatsNew isOpen={isWhatsNewOpen} onClose={closeWhatsNew} />
       <main className="main-content">
         {children}
       </main>
@@ -103,16 +129,17 @@ function AppRoutes() {
   }
 
   return (
-    <Routes>
-      <Route
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route
         path="/login"
         element={user ? <Navigate to="/" replace /> : <Login />}
-      />
+        />
 
-      <Route
+        <Route
         path="/reset-password"
         element={<ResetPassword />}
-      />
+        />
 
       <Route
         path="/"
@@ -191,8 +218,9 @@ function AppRoutes() {
         }
       />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 

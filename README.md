@@ -62,6 +62,28 @@ Follow these steps to set up the project locally.
     npm run dev
     ```
 
+### Google Sign-In
+
+1. Create a Google OAuth Web client and add your application URL as an authorized JavaScript origin.
+2. Add `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback` as an authorized Google redirect URI.
+3. Enable Google under **Supabase Dashboard → Authentication → Providers** and enter the Google client ID and secret.
+4. Add both the production URL and local development URL to **Authentication → URL Configuration → Redirect URLs**.
+
+Google users must have an existing Personnel record with the same email address. This keeps access administrator-controlled.
+
+### Deployment Notifications
+
+Apply the database migrations, generate Web Push VAPID keys, and deploy the notification function:
+
+```sh
+supabase db push
+npx web-push generate-vapid-keys
+supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:admin@example.com
+supabase functions deploy send-deployment-notifications
+```
+
+Set the generated public key as `VITE_VAPID_PUBLIC_KEY` in the deployed web app. Notifications require HTTPS in production. On iPhone and iPad, install the site to the Home Screen before enabling background notifications.
+
 ## Usage
 
 ### Scheduling View

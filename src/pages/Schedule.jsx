@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { db } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
@@ -43,7 +43,6 @@ export default function Schedule() {
     // State
     const [editingSchedule, setEditingSchedule] = useState(null);
     const [viewingEvent, setViewingEvent] = useState(null); // { title, date, schedules: [] }
-    const [selectedDate, setSelectedDate] = useState(null);
     const [registeringEvent, setRegisteringEvent] = useState(null);
     const [registerForm, setRegisterForm] = useState({
         start_time: '08:00',
@@ -61,11 +60,7 @@ export default function Schedule() {
     // Check if current user can delete the editing schedule
     const canDeleteSchedule = isAdmin || (editingSchedule && editingSchedule.personnel_id === profile?.id);
 
-    useEffect(() => {
-        loadData();
-    }, [currentDate, view]);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
             let startDate, endDate;
 
@@ -89,7 +84,11 @@ export default function Schedule() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentDate, view]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const calendarDays = useMemo(() => {
         if (view === 'month') {
@@ -156,7 +155,6 @@ export default function Schedule() {
         if (!isAdmin) return;
 
         setEditingSchedule(null);
-        setSelectedDate(date);
         setFormData({
             personnel_id: '',
             duty_date: format(date, 'yyyy-MM-dd'),
@@ -237,7 +235,21 @@ export default function Schedule() {
                 const { error } = await db.updateSchedule(editingSchedule.id, submitData);
                 if (error) throw error;
             } else {
-                await db.createSchedule(submitData);
+                submitData.is_deployment_event = isAdmin;
+                const { data: createdSchedule, error } = await db.createSchedule(submitData);
+                if (error) throw error;
+
+                if (createdSchedule?.is_deployment_event) {
+                    db.sendDeploymentNotification(createdSchedule.id)
+                        .then(({ error: notificationError }) => {
+                            if (notificationError) {
+                                console.warn('Deployment saved, but background notification delivery failed:', notificationError);
+                            }
+                        })
+                        .catch((notificationError) => {
+                            console.warn('Deployment saved, but background notification delivery failed:', notificationError);
+                        });
+                }
             }
 
             setIsModalOpen(false);
@@ -313,7 +325,7 @@ export default function Schedule() {
             </div>
 
             {/* Calendar */}
-            <div className="calendar">
+            <div className={`calendar ${view}-view`}>
                 <div className="calendar-header">
                     <div className="calendar-nav">
                         <button onClick={handlePrev}>
@@ -332,7 +344,7 @@ export default function Schedule() {
                             : `Week of ${format(startOfWeek(currentDate), 'MMM d, yyyy')}`
                         }
                     </h2>
-                    <div style={{ width: '120px' }}></div>
+                    <div className="calendar-header-spacer" aria-hidden="true" />
                 </div>
 
                 <div className="calendar-grid">
@@ -348,34 +360,36 @@ export default function Schedule() {
                         return (
                             <div
                                 key={day.toISOString()}
-                                className={`calendar-day ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''}`}
+                                className={`calendar-day ${events.length > 0 ? 'has-events' : ''} ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''}`}
                                 onClick={() => handleDayClick(day)}
                                 style={{
-                                    minHeight: view === 'week' ? '200px' : '100px',
                                     cursor: isAdmin ? 'pointer' : 'default'
                                 }}
                             >
                                 <div className="calendar-day-number">{format(day, 'd')}</div>
-                                {events.slice(0, view === 'week' ? 10 : 3).map((event, idx) => {
+                                {events.slice(0, view === 'week' ? 10 : 3).map((event) => {
                                     const regCount = getRegisteredCount(event);
                                     return (
-                                        <div
-                                            key={idx}
+                                        <button
+                                            type="button"
+                                            key={event.title}
                                             className="calendar-event"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleEventClick(event);
                                             }}
+                                            aria-label={`${event.title}, ${regCount} registered`}
+                                            title={`${event.title} (${regCount} registered)`}
                                             style={{
-                                                cursor: 'pointer',
                                                 backgroundColor: event.isGroup ? 'var(--primary)' : 'var(--secondary)',
                                                 color: event.isGroup ? 'white' : 'var(--text-primary)'
                                             }}
                                         >
-                                            <div className="flex items-center justify-between">
-                                                <span>{event.title} [{regCount} Registered]</span>
-                                            </div>
-                                        </div>
+                                            <span className="calendar-event-content">
+                                                <span className="calendar-event-title">{event.title}</span>
+                                                <span className="calendar-event-count">{regCount}</span>
+                                            </span>
+                                        </button>
                                     );
                                 })}
                                 {events.length > (view === 'week' ? 10 : 3) && (
