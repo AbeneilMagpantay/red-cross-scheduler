@@ -154,15 +154,15 @@ export default function Dashboard() {
                             <tbody>
                                 {todaySchedule.map((schedule) => (
                                     <tr key={schedule.id}>
-                                        <td>{schedule.personnel?.name}</td>
-                                        <td>{schedule.personnel?.role}</td>
-                                        <td>
+                                        <td data-label="Personnel">{schedule.personnel?.name}</td>
+                                        <td data-label="Role">{schedule.personnel?.role}</td>
+                                        <td data-label="Time">
                                             <div className="flex items-center gap-sm">
                                                 <Clock size={14} />
                                                 {schedule.start_time} - {schedule.end_time}
                                             </div>
                                         </td>
-                                        <td>
+                                        <td data-label="Status">
                                             <span className="badge badge-success">Scheduled</span>
                                         </td>
                                     </tr>
