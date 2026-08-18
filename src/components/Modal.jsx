@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 
-export default function Modal({ isOpen, onClose, title, children, size = 'md' }) {
+export default function Modal({ isOpen, onClose, title, children, size = 'md', className = '' }) {
     const titleId = useId();
     const closeButtonRef = useRef(null);
     const onCloseRef = useRef(onClose);
@@ -48,7 +48,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
     return (
         <div className="modal-overlay" onClick={handleOverlayClick}>
             <div
-                className="modal"
+                className={`modal ${className}`.trim()}
                 style={{ maxWidth: sizeClasses[size] }}
                 role="dialog"
                 aria-modal="true"

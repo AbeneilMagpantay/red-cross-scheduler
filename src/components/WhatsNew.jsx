@@ -51,6 +51,11 @@ const features = [
         icon: Smartphone,
         title: 'A mobile-first experience',
         description: 'Use fixed app navigation, readable record cards, responsive controls, and mobile-friendly dialogs.'
+    },
+    {
+        icon: CalendarDays,
+        title: 'Enhanced Schedule',
+        description: 'Create and manage duties with a guided workflow, detailed instructions, configurable reminders, flexible teams, and clearer volunteer assignments.'
     }
 ];
 

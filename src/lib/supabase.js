@@ -142,11 +142,14 @@ export const db = {
     },
 
     // ===== SCHEDULES =====
-    getSchedules: async (startDate, endDate) => {
+    getSchedules: async (startDate, endDate, includeUnassigned = false) => {
         if (!supabase) return { data: [], error: null };
-        let query = supabase.from('schedules').select('*, personnel(name, role)');
+        let query = supabase
+            .from('schedules')
+            .select('*, personnel(name, role), attendance(id, status, check_in, check_out)');
         if (startDate) query = query.gte('duty_date', startDate);
         if (endDate) query = query.lte('duty_date', endDate);
+        if (!includeUnassigned) query = query.not('personnel_id', 'is', null);
         return query.order('duty_date').order('start_time');
     },
 
@@ -164,8 +167,59 @@ export const db = {
         return supabase
             .from('schedules')
             .insert(schedule)
-            .select('*, personnel(name, role)')
+            .select('*, personnel(name, role), attendance(id, status, check_in, check_out)')
             .single();
+    },
+
+    createSchedules: async (schedules) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        if (!schedules?.length) return { data: [], error: null };
+        return supabase
+            .from('schedules')
+            .insert(schedules)
+            .select('*, personnel(name, role), attendance(id, status, check_in, check_out)');
+    },
+
+    getDutyTeams: async (eventIds = []) => {
+        if (!supabase || !eventIds.length) return { data: [], error: null };
+        return supabase
+            .from('duty_teams')
+            .select('*')
+            .in('event_id', eventIds)
+            .order('sort_order')
+            .order('created_at');
+    },
+
+    createDutyTeams: async (teams) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        if (!teams?.length) return { data: [], error: null };
+        return supabase
+            .from('duty_teams')
+            .insert(teams)
+            .select('*');
+    },
+
+    createDutyTeam: async (team) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.from('duty_teams').insert(team).select('*').single();
+    },
+
+    updateDutyTeam: async (id, updates) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.from('duty_teams').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select('*').single();
+    },
+
+    deleteDutyTeam: async (id) => {
+        if (!supabase) return { error: { message: 'Not configured' } };
+
+        const { error: assignmentError } = await supabase
+            .from('schedules')
+            .update({ team_id: null, team_station: null, assignment_role: null })
+            .eq('team_id', id);
+        if (assignmentError) return { error: assignmentError };
+
+        const { error } = await supabase.from('duty_teams').delete().eq('id', id);
+        return { error };
     },
 
     sendDeploymentNotification: async (scheduleId) => {
@@ -177,21 +231,34 @@ export const db = {
 
     updateSchedule: async (id, updates) => {
         if (!supabase) return { data: null, error: { message: 'Not configured' } };
-        return supabase.from('schedules').update(updates).eq('id', id).select().single();
+        return supabase
+            .from('schedules')
+            .update(updates)
+            .eq('id', id)
+            .select('*, personnel(name, role), attendance(id, status, check_in, check_out)')
+            .single();
+    },
+
+    updateEvent: async (eventId, updates) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase
+            .from('schedules')
+            .update(updates)
+            .eq('event_id', eventId)
+            .select('*, personnel(name, role), attendance(id, status, check_in, check_out)');
     },
 
     deleteSchedule: async (id) => {
         if (!supabase) return { error: { message: 'Not configured' } };
+        const { error } = await supabase.from('schedules').delete().eq('id', id);
+        return { error };
+    },
 
-        // Manual Cascade Delete
-        try {
-            await supabase.from('attendance').delete().eq('schedule_id', id);
-            await supabase.from('swap_requests').delete().eq('schedule_id', id);
-            const { error } = await supabase.from('schedules').delete().eq('id', id);
-            return { error };
-        } catch {
-            return supabase.from('schedules').delete().eq('id', id);
-        }
+    deleteEvent: async (eventId) => {
+        if (!supabase) return { error: { message: 'Not configured' } };
+
+        const { error } = await supabase.from('schedules').delete().eq('event_id', eventId);
+        return { error };
     },
 
     // ===== ATTENDANCE =====

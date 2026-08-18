@@ -1,2 +1,7 @@
 [functions.send-deployment-notifications]
 verify_jwt = true
+
+[functions.send-duty-reminders]
+# Supabase Cron calls this function with a private x-cron-secret header. The
+# function performs its own service-role/secret authorization check.
+verify_jwt = false
