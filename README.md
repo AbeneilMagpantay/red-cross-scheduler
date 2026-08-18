@@ -1,4 +1,4 @@
-# Red Cross (Camarines Sur) Scheduling System
+Ateneo College Red Cross Youth (ACRCY) Scheduling System
 
 A comprehensive web-based platform designed to streamline duty scheduling, personnel management, and attendance tracking for the Red Cross Camarines Sur Chapter. This solution modernizes the workflow by replacing manual logs with a centralized, real-time database system.
 
