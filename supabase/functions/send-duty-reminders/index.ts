@@ -14,6 +14,47 @@ const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringif
 const MANILA_OFFSET = '+08:00';
 const DELIVERY_WINDOW_MS = 20 * 60 * 1000;
 
+type PushSubscriptionRow = {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  subscription: {
+    endpoint?: unknown;
+    keys?: { p256dh?: unknown; auth?: unknown };
+  } | null;
+};
+
+const isAllowedPushEndpoint = (value: unknown) => {
+  if (typeof value !== 'string' || value.length > 4096) return false;
+
+  try {
+    const endpoint = new URL(value);
+    if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) return false;
+    if (endpoint.port && endpoint.port !== '443') return false;
+
+    const hostname = endpoint.hostname.toLowerCase();
+    return hostname === 'fcm.googleapis.com'
+      || hostname === 'android.googleapis.com'
+      || hostname === 'web.push.apple.com'
+      || hostname === 'push.services.mozilla.com'
+      || hostname.endsWith('.push.services.mozilla.com')
+      || hostname === 'notify.windows.com'
+      || hostname.endsWith('.notify.windows.com');
+  } catch {
+    return false;
+  }
+};
+
+const getValidatedSubscription = (row: PushSubscriptionRow) => {
+  const subscription = row.subscription;
+  if (!subscription || subscription.endpoint !== row.endpoint || !isAllowedPushEndpoint(row.endpoint)) return null;
+  const p256dh = subscription.keys?.p256dh;
+  const auth = subscription.keys?.auth;
+  if (typeof p256dh !== 'string' || typeof auth !== 'string') return null;
+  if (p256dh.length < 16 || auth.length < 8) return null;
+  return subscription as unknown as Parameters<typeof webpush.sendNotification>[0];
+};
+
 const getManilaDate = (date: Date) => {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Manila',
@@ -33,7 +74,7 @@ type ScheduleRow = {
   start_time: string | null;
   precise_location: string | null;
   reminder_offsets: number[] | null;
-  personnel: { email: string | null } | null;
+  personnel: { email: string | null; is_active: boolean } | null;
 };
 
 Deno.serve(async (request) => {
@@ -63,8 +104,9 @@ Deno.serve(async (request) => {
 
   const { data, error: schedulesError } = await adminClient
     .from('schedules')
-    .select('id, personnel_id, title, duty_date, start_time, precise_location, reminder_offsets, personnel(email)')
+    .select('id, personnel_id, title, duty_date, start_time, precise_location, reminder_offsets, personnel!inner(email, is_active)')
     .not('personnel_id', 'is', null)
+    .eq('personnel.is_active', true)
     .gte('duty_date', today)
     .order('duty_date', { ascending: true })
     .limit(5000);
@@ -87,11 +129,16 @@ Deno.serve(async (request) => {
 
   // Restored and Google-linked accounts can legitimately have an auth ID that
   // differs from the preserved personnel ID. Resolve by ID first, then email.
-  const { data: authUsers, error: authUsersError } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (authUsersError) return jsonResponse({ error: authUsersError.message }, 500);
+  const authUsers: Array<{ id: string; email?: string | null }> = [];
+  for (let page = 1; page <= 20; page += 1) {
+    const { data: authPage, error: authUsersError } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
+    if (authUsersError) return jsonResponse({ error: authUsersError.message }, 500);
+    authUsers.push(...authPage.users);
+    if (authPage.users.length < 1000) break;
+  }
 
-  const usersById = new Map(authUsers.users.map((user) => [user.id, user]));
-  const usersByEmail = new Map(authUsers.users.filter((user) => user.email).map((user) => [user.email!.toLowerCase(), user]));
+  const usersById = new Map(authUsers.map((user) => [user.id, user]));
+  const usersByEmail = new Map(authUsers.filter((user) => user.email).map((user) => [user.email!.toLowerCase(), user]));
   const resolvedDue = due.flatMap((item) => {
     const authUser = usersById.get(item.schedule.personnel_id)
       || usersByEmail.get(item.schedule.personnel?.email?.toLowerCase() || '');
@@ -102,14 +149,14 @@ Deno.serve(async (request) => {
 
   const { data: subscriptions, error: subscriptionsError } = await adminClient
     .from('push_subscriptions')
-    .select('id, user_id, subscription')
+    .select('id, user_id, endpoint, subscription')
     .in('user_id', userIds)
     .eq('is_active', true);
 
   if (subscriptionsError) return jsonResponse({ error: subscriptionsError.message }, 500);
 
-  const subscriptionsByUser = new Map<string, typeof subscriptions>();
-  (subscriptions || []).forEach((row) => {
+  const subscriptionsByUser = new Map<string, PushSubscriptionRow[]>();
+  ((subscriptions || []) as PushSubscriptionRow[]).forEach((row) => {
     const current = subscriptionsByUser.get(row.user_id) || [];
     current.push(row);
     subscriptionsByUser.set(row.user_id, current);
@@ -156,13 +203,17 @@ Deno.serve(async (request) => {
     const uniqueEndpoints = new Set<string>();
 
     for (const row of userSubscriptions) {
-      const subscription = row.subscription as Parameters<typeof webpush.sendNotification>[0];
-      if (!subscription?.endpoint || uniqueEndpoints.has(subscription.endpoint)) continue;
-      uniqueEndpoints.add(subscription.endpoint);
+      const subscription = getValidatedSubscription(row);
+      if (!subscription) {
+        await adminClient.from('push_subscriptions').delete().eq('id', row.id);
+        continue;
+      }
+      if (uniqueEndpoints.has(row.endpoint)) continue;
+      uniqueEndpoints.add(row.endpoint);
 
       try {
         const ttl = Math.max(60, Math.floor((item.dutyStartsAt.getTime() - now.getTime()) / 1000));
-        await webpush.sendNotification(subscription, notification, { TTL: ttl });
+        await webpush.sendNotification(subscription, notification, { TTL: ttl, timeout: 10_000 });
         assignmentDelivered = true;
       } catch (error) {
         const statusCode = (error as { statusCode?: number }).statusCode;

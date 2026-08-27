@@ -1,18 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/supabase';
+import { Link } from 'react-router-dom';
 import {
     Users,
     Calendar,
     ClipboardCheck,
     ArrowLeftRight,
     Clock,
-    AlertCircle
+    AlertCircle,
+    ArrowUpRight,
+    ListChecks,
+    QrCode,
+    Megaphone
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Dashboard() {
-    const { profile } = useAuth();
+    const { profile, canAccessArc } = useAuth();
     const [stats, setStats] = useState({
         totalPersonnel: 0,
         todayDuties: 0,
@@ -81,6 +86,34 @@ export default function Dashboard() {
                 </div>
                 <div className="workspace-status"><span /> Live workspace</div>
             </div>
+
+            <section className="dashboard-arc-modules" aria-label="ARC modules">
+                <Link to="/alerts" className="dashboard-module-card alerts">
+                    <div><Megaphone size={28} /></div>
+                    <span>Operational feed</span>
+                    <strong>ALERTS</strong>
+                    <p>Read urgent updates, deployments, training notices, and announcements.</p>
+                    <ArrowUpRight size={20} />
+                </Link>
+                {canAccessArc && (
+                    <>
+                        <Link to="/nexus" className="dashboard-module-card nexus">
+                        <div><QrCode size={28} /></div>
+                        <span>Resource board</span>
+                        <strong>NEXUS</strong>
+                        <p>Open shared QR codes, links, and council resources.</p>
+                        <ArrowUpRight size={20} />
+                        </Link>
+                        <Link to="/core" className="dashboard-module-card core">
+                        <div><ListChecks size={28} /></div>
+                        <span>Officer workspace</span>
+                        <strong>CORE</strong>
+                        <p>Review committee deliverables, progress, and deadlines.</p>
+                        <ArrowUpRight size={20} />
+                        </Link>
+                    </>
+                )}
+            </section>
 
             {/* Stats Grid */}
             <div className="stats-grid">

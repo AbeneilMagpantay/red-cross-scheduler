@@ -24,7 +24,14 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const targetUrl = new URL(event.notification.data?.url || DEFAULT_NOTIFICATION_URL, self.location.origin).href;
+    let targetUrl = new URL(DEFAULT_NOTIFICATION_URL, self.location.origin).href;
+
+    try {
+        const requestedUrl = new URL(event.notification.data?.url || DEFAULT_NOTIFICATION_URL, self.location.origin);
+        if (requestedUrl.origin === self.location.origin) targetUrl = requestedUrl.href;
+    } catch {
+        // Invalid or cross-origin notification targets always fall back to the app.
+    }
 
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {

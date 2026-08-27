@@ -246,7 +246,7 @@ export default function Personnel() {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Personnel Management</h1>
-                    <p className="page-subtitle">Manage active and archived volunteers and staff members</p>
+                    <p className="page-subtitle">Manage active and archived volunteers, officers, and administrators</p>
                 </div>
                 <button className="btn btn-primary" onClick={() => handleOpenModal()}>
                     <Plus size={18} />
@@ -471,7 +471,7 @@ export default function Personnel() {
                             required
                         >
                             <option value="volunteer">Volunteer</option>
-                            <option value="staff">Staff</option>
+                            <option value="officer">Officer</option>
                             <option value="admin">Admin</option>
                         </select>
                     </div>
@@ -499,10 +499,8 @@ export default function Personnel() {
                                 onChange={(e) => setFormData({ ...formData, license_type: e.target.value })}
                             >
                                 <option value="">Select License Type</option>
-                                <option value="EMT">EMT</option>
-                                <option value="BLS">BLS</option>
-                                <option value="ALS">ALS</option>
-                                <option value="N/A">N/A</option>
+                                <option value="SFAT">SFAT</option>
+                                <option value="EFAT">EFAT</option>
                             </select>
                         </div>
                         <div className="form-group" style={{ flex: 1 }}>

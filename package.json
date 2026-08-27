@@ -8,11 +8,13 @@
     "build": "vite build",
     "lint": "eslint .",
     "test": "node --test src/lib/*.test.js",
+    "security:check": "node scripts/security-smoke.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
     "date-fns": "^4.1.0",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

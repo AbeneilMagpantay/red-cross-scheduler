@@ -1,11 +1,11 @@
 {
-  "name": "Ateneo Red Cross Youth Scheduler",
-  "short_name": "RCY Scheduler",
-  "description": "Deployment scheduling and attendance for Ateneo Red Cross Youth.",
+  "name": "ARC — ACRCY Operations",
+  "short_name": "ARC",
+  "description": "Scheduling, resources, deliverables, and volunteer operations for Ateneo Red Cross Youth.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f0f0f",
-  "theme_color": "#ed1b2e",
+  "background_color": "#fffdf8",
+  "theme_color": "#982036",
   "icons": [
     {
       "src": "/app-icon.svg",

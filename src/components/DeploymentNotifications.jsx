@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Bell, Calendar, X } from 'lucide-react';
+import { Bell, Calendar, Megaphone, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { showLiveDeploymentNotification } from '../lib/notifications';
+import { showLiveArcAlertNotification, showLiveDeploymentNotification } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 
 export default function DeploymentNotifications() {
@@ -25,9 +25,20 @@ export default function DeploymentNotifications() {
                 // the event anchor represents a newly created deployment.
                 if (!schedule.is_deployment_event || !schedule.is_event_anchor) return;
 
-                setNotification(schedule);
+                setNotification({ kind: 'deployment', payload: schedule });
                 showLiveDeploymentNotification(schedule, user?.id).catch((error) => {
                     console.warn('Unable to show system notification:', error);
+                });
+            })
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'arc_announcements'
+            }, ({ new: announcement }) => {
+                if (announcement.created_by === profile.id) return;
+                setNotification({ kind: 'alert', payload: announcement });
+                showLiveArcAlertNotification(announcement, user?.id).catch((error) => {
+                    console.warn('Unable to show ARC alert notification:', error);
                 });
             })
             .subscribe();
@@ -45,20 +56,23 @@ export default function DeploymentNotifications() {
 
     if (!notification) return null;
 
+    const isAlert = notification.kind === 'alert';
+    const payload = notification.payload;
+
     return (
         <div className="app-toast" role="status" aria-live="polite">
-            <div className="app-toast-icon"><Bell size={20} /></div>
+            <div className="app-toast-icon">{isAlert ? <Megaphone size={20} /> : <Bell size={20} />}</div>
             <div className="app-toast-content">
-                <strong>New deployment duty</strong>
-                <span>{notification.title || 'A new duty was added to the schedule.'}</span>
+                <strong>{isAlert ? 'New ARC announcement' : 'New deployment duty'}</strong>
+                <span>{payload.title || (isAlert ? 'A new announcement was published.' : 'A new duty was added to the schedule.')}</span>
                 <button
                     type="button"
                     onClick={() => {
                         setNotification(null);
-                        navigate('/schedule');
+                        navigate(isAlert ? '/alerts' : '/schedule');
                     }}
                 >
-                    <Calendar size={14} /> View schedule
+                    {isAlert ? <Megaphone size={14} /> : <Calendar size={14} />} {isAlert ? 'Read alert' : 'View schedule'}
                 </button>
             </div>
             <button

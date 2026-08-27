@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { auth, db, isConfigured } from '../lib/supabase';
+import { roleCanAccessArc } from '../lib/arc';
 
 const AuthContext = createContext({});
 
@@ -13,6 +14,9 @@ export function AuthProvider({ children }) {
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [profileLoading, setProfileLoading] = useState(false);
+    const activeUserIdRef = useRef(null);
+    const profileUserIdRef = useRef(null);
+    const profileRequestRef = useRef(null);
 
     useEffect(() => {
         if (!isConfigured) {
@@ -27,11 +31,12 @@ export function AuthProvider({ children }) {
                 const { session } = await auth.getSession();
 
                 if (mounted && session?.user) {
+                    activeUserIdRef.current = session.user.id;
                     setUser(session.user);
                     setLoading(false); // Stop main loading immediately
-                    // Load profile in background
-                    loadProfile(session.user);
+                    loadProfile(session.user, { blocking: true });
                 } else if (mounted) {
+                    activeUserIdRef.current = null;
                     setLoading(false);
                 }
             } catch (error) {
@@ -40,9 +45,15 @@ export function AuthProvider({ children }) {
             }
         }
 
-        async function loadProfile(currentUser) {
+        async function loadProfile(currentUser, { blocking = false } = {}) {
             if (!currentUser) return;
-            setProfileLoading(true);
+            if (profileRequestRef.current?.userId === currentUser.id) return;
+
+            const shouldBlock = blocking || profileUserIdRef.current !== currentUser.id;
+            const request = { userId: currentUser.id };
+            profileRequestRef.current = request;
+            if (shouldBlock) setProfileLoading(true);
+
             try {
                 // Try finding by ID first
                 let { data } = await db.getPersonnelById(currentUser.id);
@@ -53,41 +64,67 @@ export function AuthProvider({ children }) {
                     data = emailData;
                 }
 
-                if (mounted) {
+                if (mounted && activeUserIdRef.current === currentUser.id) {
                     setProfile(data);
+                    profileUserIdRef.current = currentUser.id;
                 }
             } catch (error) {
                 console.error('Profile load error:', error);
-                if (mounted) {
+                // Keep an already-loaded profile during a quiet refresh. A brief
+                // network issue when returning to the tab should not unmount the
+                // current page or close an in-progress dialog.
+                if (mounted && shouldBlock && activeUserIdRef.current === currentUser.id) {
                     setProfile(null);
                 }
             } finally {
-                if (mounted) setProfileLoading(false);
+                if (profileRequestRef.current === request) {
+                    profileRequestRef.current = null;
+                }
+                if (mounted && shouldBlock && activeUserIdRef.current === currentUser.id) {
+                    setProfileLoading(false);
+                }
             }
         }
 
         loadUserSession();
 
-        const { data: { subscription } } = auth.onAuthStateChange(async (event, session) => {
+        const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
             console.log('Auth Change:', event);
             if (!mounted) return;
 
             if (session?.user) {
+                const hasCurrentProfile = profileUserIdRef.current === session.user.id;
+                activeUserIdRef.current = session.user.id;
                 setUser(session.user);
-                if (event === 'SIGNED_IN') {
+
+                if (!hasCurrentProfile) {
+                    setProfile(null);
+                    loadProfile(session.user, { blocking: true });
+                } else if (event === 'SIGNED_IN') {
+                    // Supabase also emits SIGNED_IN when an existing session is
+                    // recovered after a tab becomes visible. Refresh quietly so
+                    // the page and any open modal stay mounted.
                     loadProfile(session.user);
                 }
             } else {
+                activeUserIdRef.current = null;
+                profileUserIdRef.current = null;
+                profileRequestRef.current = null;
                 setUser(null);
                 setProfile(null);
+                setProfileLoading(false);
             }
         });
 
         return () => {
             mounted = false;
+            profileRequestRef.current = null;
             subscription?.unsubscribe();
         };
     }, []);
+
+    const isAdmin = profile?.role === 'admin';
+    const isOfficer = profile?.role === 'officer';
 
     const value = {
         user,
@@ -102,11 +139,17 @@ export function AuthProvider({ children }) {
         signUp: (email, password, meta) => auth.signUp(email, password, meta),
         signOut: async () => {
             await auth.signOut();
+            activeUserIdRef.current = null;
+            profileUserIdRef.current = null;
+            profileRequestRef.current = null;
             setUser(null);
             setProfile(null);
+            setProfileLoading(false);
         },
         updatePassword: (newPassword) => auth.updatePassword(newPassword),
-        isAdmin: profile?.role === 'admin',
+        isAdmin,
+        isOfficer,
+        canAccessArc: roleCanAccessArc(profile?.role),
         configError: !isConfigured
     };
 

@@ -229,6 +229,13 @@ export const db = {
         });
     },
 
+    sendArcAnnouncementNotification: async (announcementId) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.functions.invoke('send-deployment-notifications', {
+            body: { announcement_id: announcementId }
+        });
+    },
+
     updateSchedule: async (id, updates) => {
         if (!supabase) return { data: null, error: { message: 'Not configured' } };
         return supabase
@@ -259,6 +266,193 @@ export const db = {
 
         const { error } = await supabase.from('schedules').delete().eq('event_id', eventId);
         return { error };
+    },
+
+    // ===== ARC / NEXUS =====
+    getArcResources: async () => {
+        if (!supabase) return { data: [], error: null };
+        return supabase
+            .from('arc_resources')
+            .select('*')
+            .order('sort_order')
+            .order('created_at');
+    },
+
+    createArcResource: async (resource) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.from('arc_resources').insert(resource).select('*').single();
+    },
+
+    upsertArcResource: async (resource) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase
+            .from('arc_resources')
+            .upsert(resource, { onConflict: 'legacy_id' })
+            .select('*')
+            .single();
+    },
+
+    updateArcResource: async (id, updates) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.from('arc_resources').update(updates).eq('id', id).select('*').single();
+    },
+
+    deleteArcResource: async (id) => {
+        if (!supabase) return { error: { message: 'Not configured' } };
+        const { error } = await supabase.from('arc_resources').delete().eq('id', id);
+        return { error };
+    },
+
+    reorderArcResources: async (resources, personnelId) => {
+        if (!supabase) return { error: { message: 'Not configured' } };
+        const results = await Promise.all(resources.map((resource, index) => (
+            supabase
+                .from('arc_resources')
+                .update({ sort_order: index, updated_by: personnelId || null })
+                .eq('id', resource.id)
+        )));
+        return { error: results.find((result) => result.error)?.error || null };
+    },
+
+    uploadArcQrImage: async (resourceId, file, options = {}) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        const extensionByType = {
+            'image/png': 'png',
+            'image/jpeg': 'jpg',
+            'image/webp': 'webp'
+        };
+        const extension = extensionByType[file.type];
+        if (!extension) return { data: null, error: { message: 'Only PNG, JPEG, and WebP images are allowed.' } };
+        const path = options.path || `${resourceId}/${globalThis.crypto?.randomUUID?.() || Date.now()}.${extension}`;
+        const { error } = await supabase.storage.from('arc-resource-qr').upload(path, file, {
+            cacheControl: '3600',
+            contentType: file.type,
+            upsert: Boolean(options.upsert)
+        });
+        return { data: error ? null : { path }, error };
+    },
+
+    deleteArcQrImage: async (path) => {
+        if (!supabase || !path) return { error: null };
+        const { error } = await supabase.storage.from('arc-resource-qr').remove([path]);
+        return { error };
+    },
+
+    getArcQrImageUrl: async (path) => {
+        if (!supabase || !path) return { data: null, error: null };
+        return supabase.storage.from('arc-resource-qr').createSignedUrl(path, 3600);
+    },
+
+    subscribeArcResources: (callback) => {
+        if (!supabase) return () => {};
+        const channel = supabase
+            .channel(`arc-resources-${globalThis.crypto?.randomUUID?.() || Date.now()}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'arc_resources' }, callback)
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    },
+
+    // ===== ARC / CORE =====
+    getArcCoreFields: async () => {
+        if (!supabase) return { data: [], error: null };
+        return supabase.from('arc_core_fields').select('*');
+    },
+
+    upsertArcCoreField: async (fieldKey, fieldValue, personnelId) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase
+            .from('arc_core_fields')
+            .upsert({
+                field_key: fieldKey,
+                field_value: fieldValue ?? '',
+                updated_by: personnelId || null
+            }, { onConflict: 'field_key' })
+            .select('*')
+            .single();
+    },
+
+    upsertArcCoreFields: async (fields, personnelId) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        if (!fields?.length) return { data: [], error: null };
+        return supabase
+            .from('arc_core_fields')
+            .upsert(fields.map(({ field_key, field_value }) => ({
+                field_key,
+                field_value: field_value ?? '',
+                updated_by: personnelId || null
+            })), { onConflict: 'field_key' })
+            .select('*');
+    },
+
+    deleteArcCoreFields: async (fieldKeys) => {
+        if (!supabase || !fieldKeys?.length) return { error: null };
+        const { error } = await supabase.from('arc_core_fields').delete().in('field_key', fieldKeys);
+        return { error };
+    },
+
+    subscribeArcCore: (callback) => {
+        if (!supabase) return () => {};
+        const channel = supabase
+            .channel(`arc-core-${globalThis.crypto?.randomUUID?.() || Date.now()}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'arc_core_fields' }, callback)
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    },
+
+    // ===== ARC / ALERTS =====
+    getArcAnnouncements: async () => {
+        if (!supabase) return { data: [], error: null };
+        return supabase
+            .from('arc_announcements')
+            .select('*')
+            .order('is_pinned', { ascending: false })
+            .order('sort_order')
+            .order('created_at', { ascending: false });
+    },
+
+    createArcAnnouncement: async (announcement) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.from('arc_announcements').insert(announcement).select('*').single();
+    },
+
+    upsertArcAnnouncement: async (announcement) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase
+            .from('arc_announcements')
+            .upsert(announcement, { onConflict: 'legacy_id' })
+            .select('*')
+            .single();
+    },
+
+    updateArcAnnouncement: async (id, updates) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.from('arc_announcements').update(updates).eq('id', id).select('*').single();
+    },
+
+    deleteArcAnnouncement: async (id) => {
+        if (!supabase) return { error: { message: 'Not configured' } };
+        const { error } = await supabase.from('arc_announcements').delete().eq('id', id);
+        return { error };
+    },
+
+    reorderArcAnnouncements: async (announcements, personnelId) => {
+        if (!supabase) return { error: { message: 'Not configured' } };
+        const results = await Promise.all(announcements.map((announcement, index) => (
+            supabase
+                .from('arc_announcements')
+                .update({ sort_order: index, updated_by: personnelId || null })
+                .eq('id', announcement.id)
+        )));
+        return { error: results.find((result) => result.error)?.error || null };
+    },
+
+    subscribeArcAnnouncements: (callback) => {
+        if (!supabase) return () => {};
+        const channel = supabase
+            .channel(`arc-announcements-${globalThis.crypto?.randomUUID?.() || Date.now()}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'arc_announcements' }, callback)
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
     },
 
     // ===== ATTENDANCE =====

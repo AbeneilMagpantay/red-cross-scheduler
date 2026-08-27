@@ -19,7 +19,7 @@ test('stores the announcement as seen for the current release and user', () => {
     };
 
     try {
-        assert.equal(WHATS_NEW_RELEASE, 'v2');
+        assert.equal(WHATS_NEW_RELEASE, 'v3');
         assert.equal(hasSeenWhatsNew('person-1'), false);
         rememberWhatsNewSeen('person-1');
         assert.equal(hasSeenWhatsNew('person-1'), true);

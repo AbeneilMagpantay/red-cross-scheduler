@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { arcHtmlToText } from './arc';
 
 const NOTIFICATION_PREFERENCE_KEY = 'deployment-notifications-enabled';
 const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
@@ -91,11 +92,25 @@ export const showTestNotification = async (userId) => {
 
     const registration = await navigator.serviceWorker.ready;
     await registration.showNotification('Notifications are ready', {
-        body: 'You will be alerted when a new deployment duty is scheduled.',
+        body: 'You will be alerted about new deployment duties and ARC announcements.',
         icon: '/app-icon.svg',
         badge: '/app-icon.svg',
         tag: 'notification-test',
         data: { url: '/settings' }
+    });
+};
+
+export const showLiveArcAlertNotification = async (announcement, userId) => {
+    const capability = getNotificationCapability(userId);
+    if (!capability.enabled || capability.permission !== 'granted' || capability.backgroundConfigured) return;
+
+    const registration = await navigator.serviceWorker.ready;
+    await registration.showNotification(announcement.title || 'New ARC Alert', {
+        body: arcHtmlToText(announcement.body_html || '').slice(0, 180) || 'Open Alerts to read the announcement.',
+        icon: '/app-icon.svg',
+        badge: '/app-icon.svg',
+        tag: `arc-alert-${announcement.id}`,
+        data: { url: '/alerts' }
     });
 };
 

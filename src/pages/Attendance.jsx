@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../lib/supabase';
-import Modal from '../components/Modal';
 import {
     Clock,
     LogIn,
@@ -11,23 +10,29 @@ import {
     Calendar
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useAuth } from '../context/AuthContext';
 
 export default function Attendance() {
+    const { profile, isAdmin } = useAuth();
     const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [schedules, setSchedules] = useState([]);
     const [attendance, setAttendance] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const { data: scheduleData } = await db.getSchedules(selectedDate, selectedDate);
-            const { data: attendanceData } = await db.getAttendance(selectedDate);
+            const { data: scheduleData, error: schedulesError } = await db.getSchedules(selectedDate, selectedDate);
+            const { data: attendanceData, error: attendanceError } = await db.getAttendance(selectedDate);
+            if (schedulesError || attendanceError) throw schedulesError || attendanceError;
 
             setSchedules(scheduleData || []);
             setAttendance(attendanceData || []);
+            setError('');
         } catch (error) {
             console.error('Error loading data:', error);
+            setError(error.message || 'Attendance could not be loaded.');
         } finally {
             setLoading(false);
         }
@@ -43,39 +48,48 @@ export default function Attendance() {
 
     const handleCheckIn = async (scheduleId, personnelId) => {
         try {
-            await db.createAttendance({
+            setError('');
+            const { error: checkInError } = await db.createAttendance({
                 schedule_id: scheduleId,
                 personnel_id: personnelId,
                 check_in: new Date().toISOString(),
                 status: 'present'
             });
+            if (checkInError) throw checkInError;
             loadData();
         } catch (error) {
             console.error('Error recording check-in:', error);
+            setError(error.message || 'Attendance could not be recorded.');
         }
     };
 
     const handleCheckOut = async (attendanceId) => {
         try {
-            await db.updateAttendance(attendanceId, {
+            setError('');
+            const { error: checkOutError } = await db.updateAttendance(attendanceId, {
                 check_out: new Date().toISOString()
             });
+            if (checkOutError) throw checkOutError;
             loadData();
         } catch (error) {
             console.error('Error recording check-out:', error);
+            setError(error.message || 'Check-out could not be recorded.');
         }
     };
 
     const handleMarkStatus = async (scheduleId, personnelId, status) => {
         try {
-            await db.createAttendance({
+            setError('');
+            const { error: statusError } = await db.createAttendance({
                 schedule_id: scheduleId,
                 personnel_id: personnelId,
                 status: status
             });
+            if (statusError) throw statusError;
             loadData();
         } catch (error) {
             console.error('Error marking status:', error);
+            setError(error.message || 'Attendance status could not be recorded.');
         }
     };
 
@@ -122,6 +136,12 @@ export default function Attendance() {
                     />
                 </div>
             </div>
+
+            {error && (
+                <div className="inline-alert error" role="alert">
+                    <AlertCircle size={18} /> {error}
+                </div>
+            )}
 
             {/* Stats */}
             <div className="stats-grid mb-xl">
@@ -194,6 +214,7 @@ export default function Attendance() {
                                 {schedules.map((schedule) => {
                                     const att = getAttendanceForSchedule(schedule.id);
                                     const statusInfo = att ? getStatusBadge(att.status) : getStatusBadge(null);
+                                    const canManageAttendance = isAdmin || schedule.personnel_id === profile?.id;
 
                                     return (
                                         <tr key={schedule.id}>
@@ -232,7 +253,9 @@ export default function Attendance() {
                                                 </span>
                                             </td>
                                             <td data-label="Actions">
-                                                {!att ? (
+                                                {!canManageAttendance ? (
+                                                    <span className="text-muted text-sm">View only</span>
+                                                ) : !att ? (
                                                     <div className="flex gap-sm">
                                                         <button
                                                             className="btn btn-sm btn-primary"

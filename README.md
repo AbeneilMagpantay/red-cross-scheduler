@@ -1,4 +1,4 @@
-# Red Cross (Camarines Sur) Scheduling System
+# ARC | Ateneo College Red Cross Youth Operations
 
 A comprehensive web-based platform designed to streamline duty scheduling, personnel management, and attendance tracking for the Red Cross Camarines Sur Chapter. This solution modernizes the workflow by replacing manual logs with a centralized, real-time database system.
 
@@ -21,6 +21,11 @@ A comprehensive web-based platform designed to streamline duty scheduling, perso
 *   **Attendance Tracking**: Digital check-in/check-out system with automated status reporting (Present, Late, Absent).
 *   **Shift Swapping**: Automated workflow for personnel to request and validate shift exchanges.
 *   **Real-time Dashboard**: Live statistics on workforce deployment and pending administrative actions.
+*   **NEXUS Resource Board**: Officer-only shared QR cards, links, descriptions, ordering, and image exports.
+*   **CORE Deliverables**: Officer-only shared committee deliverables, statuses, deadlines, remarks, and exports.
+*   **ARC Alerts**: A categorized announcement feed with unread badges, rich text, urgent pins, realtime updates, and Web Push delivery.
+*   **Officer Access Level**: Officers keep normal volunteer abilities while gaining secure access to NEXUS and CORE.
+*   **ARC Design System**: A responsive cream, maroon, and navy interface with light/dark themes, a collapsible sidebar, optional interface sounds, and an in-app walkthrough.
 
 ## Built With
 
@@ -87,6 +92,23 @@ Set the generated public key as `VITE_VAPID_PUBLIC_KEY` in the deployed web app.
 
 For timed duty reminders, create a Supabase Cron job that runs every 15 minutes and sends a `POST` request to `https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-duty-reminders`. Add an `x-cron-secret` header containing the same private value used for `REMINDER_CRON_SECRET`. The reminder function rejects calls that do not have this secret or the service-role token.
 
+### Required security rollout
+
+Before treating a deployment as production-ready:
+
+1. Apply every migration, including `20260828_security_hardening.sql`, with `supabase db push` or by running that file in the Supabase SQL Editor. This removes the original public attendance/swap policies and enforces active-member, owner, and administrator access.
+   After applying it, run `npm run security:check` locally. It performs anonymous, count-only reads and should report `PASS` for every protected table.
+2. Redeploy both Edge Functions after changing their code:
+   ```sh
+   supabase functions deploy send-deployment-notifications
+   supabase functions deploy send-duty-reminders --no-verify-jwt
+   ```
+3. In **Supabase Dashboard → Authentication → Sign In / Providers → Email**, keep **Confirm email** enabled. Disable public user sign-up if accounts should be created only by the organization, and leave anonymous sign-ins disabled.
+4. In the Supabase password security settings, require at least 12 characters and enable leaked-password protection when available. Require MFA for administrator accounts when the project plan supports it.
+5. Keep `SUPABASE_SERVICE_ROLE_KEY`, `VAPID_PRIVATE_KEY`, Google client secrets, and `REMINDER_CRON_SECRET` only in Supabase/Vercel secret settings. Never prefix a private value with `VITE_` or commit it to Git.
+
+The Supabase project URL, anonymous/publishable key, and VAPID public key are expected to be visible in the browser. RLS and the Edge Function checks are the security boundary for those public values.
+
 ## Usage
 
 ### Scheduling View
@@ -118,6 +140,19 @@ The application is optimized for deployment on Vercel.
 3.  Set `Framework Preset` to **Vite**.
 4.  Add Environment Variables from `.env`.
 5.  Deploy.
+
+### ARC integration
+
+Apply `supabase/migrations/20260822_arc_integration.sql`, followed by
+`supabase/migrations/20260827_arc_alerts.sql`, after the earlier migrations.
+They convert existing Staff personnel to Officer, create NEXUS, CORE, and
+Alerts, create private QR storage, and install the required database access
+rules. Redeploy `send-deployment-notifications` so the existing Web Push setup
+can also send ARC announcements.
+
+After deployment, an Admin can open **Settings → Existing ARC Data** to import
+the latest snapshot from the legacy ARC site. Follow `ARC_CUTOVER.md` for the
+verification and read-only cutover sequence.
 
 ## License
 
