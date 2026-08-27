@@ -32,8 +32,8 @@ export default function ResetPassword() {
         e.preventDefault();
         setMessage({ type: '', text: '' });
 
-        if (password.length < 6) {
-            setMessage({ type: 'error', text: 'Password must be at least 6 characters.' });
+        if (password.length < 12) {
+            setMessage({ type: 'error', text: 'Password must be at least 12 characters.' });
             return;
         }
 
@@ -106,7 +106,7 @@ export default function ResetPassword() {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         required
-                                        minLength={6}
+                                        minLength={12}
                                     />
                                     <button
                                         type="button"
@@ -136,7 +136,7 @@ export default function ResetPassword() {
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     required
-                                    minLength={6}
+                                    minLength={12}
                                 />
                             </div>
 

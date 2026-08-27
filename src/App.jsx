@@ -1,9 +1,11 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import DeploymentNotifications from './components/DeploymentNotifications';
 import WhatsNew from './components/WhatsNew';
+import AppGuide from './components/AppGuide';
+import { playArcTap } from './lib/sounds';
 import { hasSeenWhatsNew, rememberWhatsNewSeen } from './lib/whatsNew';
 import './index.css';
 
@@ -15,6 +17,9 @@ const Attendance = lazy(() => import('./pages/Attendance'));
 const Records = lazy(() => import('./pages/Records'));
 const Swaps = lazy(() => import('./pages/Swaps'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Nexus = lazy(() => import('./pages/Nexus'));
+const Core = lazy(() => import('./pages/Core'));
+const Alerts = lazy(() => import('./pages/Alerts'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
 function PageLoader() {
@@ -27,8 +32,8 @@ function PageLoader() {
 }
 
 // Protected Route wrapper
-function ProtectedRoute({ children, adminOnly = false }) {
-  const { user, profile, loading, profileLoading, isAdmin } = useAuth();
+function ProtectedRoute({ children, adminOnly = false, arcOnly = false }) {
+  const { user, profile, loading, profileLoading, isAdmin, canAccessArc } = useAuth();
 
   // Show loading while checking session
   if (loading) {
@@ -45,7 +50,7 @@ function ProtectedRoute({ children, adminOnly = false }) {
   }
 
   // Show loading while profile is being fetched
-  if (profileLoading) {
+  if (profileLoading && !profile) {
     return (
       <div className="flex items-center justify-center" style={{ height: '100vh' }}>
         <div className="loading" style={{ width: 48, height: 48 }} />
@@ -90,6 +95,10 @@ function ProtectedRoute({ children, adminOnly = false }) {
     return <Navigate to="/" replace />;
   }
 
+  if (arcOnly && !canAccessArc) {
+    return <Navigate to="/" replace />;
+  }
+
   return children;
 }
 
@@ -99,6 +108,18 @@ function AppLayout({ children }) {
   const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(
     () => Boolean(user?.id) && !hasSeenWhatsNew(user.id)
   );
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+    () => localStorage.getItem('arc-sidebar-collapsed') === 'true'
+  );
+
+  useEffect(() => {
+    const handleTap = (event) => {
+      if (event.target instanceof Element && event.target.closest('button, a, [role="button"]')) playArcTap();
+    };
+    document.addEventListener('click', handleTap);
+    return () => document.removeEventListener('click', handleTap);
+  }, []);
 
   const closeWhatsNew = () => {
     rememberWhatsNewSeen(user?.id);
@@ -106,10 +127,20 @@ function AppLayout({ children }) {
   };
 
   return (
-    <div className="app-layout">
-      <Sidebar onOpenWhatsNew={() => setIsWhatsNewOpen(true)} />
+    <div className={`app-layout ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <Sidebar
+        onOpenWhatsNew={() => setIsWhatsNewOpen(true)}
+        onOpenGuide={() => setIsGuideOpen(true)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapsed={() => setIsSidebarCollapsed((current) => {
+          const next = !current;
+          localStorage.setItem('arc-sidebar-collapsed', String(next));
+          return next;
+        })}
+      />
       <DeploymentNotifications />
       <WhatsNew isOpen={isWhatsNewOpen} onClose={closeWhatsNew} />
+      {isGuideOpen && <AppGuide isOpen onClose={() => setIsGuideOpen(false)} />}
       <main className="main-content">
         {children}
       </main>
@@ -213,6 +244,39 @@ function AppRoutes() {
           <ProtectedRoute>
             <AppLayout>
               <Settings />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/nexus"
+        element={
+          <ProtectedRoute arcOnly>
+            <AppLayout>
+              <Nexus />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/core"
+        element={
+          <ProtectedRoute arcOnly>
+            <AppLayout>
+              <Core />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/alerts"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <Alerts />
             </AppLayout>
           </ProtectedRoute>
         }

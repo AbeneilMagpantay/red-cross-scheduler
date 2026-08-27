@@ -1,4 +1,4 @@
-export const WHATS_NEW_RELEASE = 'v2';
+export const WHATS_NEW_RELEASE = 'v3';
 
 export function getWhatsNewStorageKey(userId) {
     return `rcy-whats-new:${WHATS_NEW_RELEASE}:${userId || 'visitor'}`;

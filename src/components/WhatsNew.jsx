@@ -5,6 +5,8 @@ import {
     ChartNoAxesColumnIncreasing,
     History,
     LogIn,
+    Megaphone,
+    PanelsTopLeft,
     Rocket,
     Smartphone,
     Sparkles,
@@ -39,8 +41,8 @@ const features = [
     },
     {
         icon: BellRing,
-        title: 'Deployment notifications',
-        description: 'Turn on notifications in Settings to be alerted when a new deployment duty is scheduled.'
+        title: 'ARC notifications',
+        description: 'Turn on notifications in Settings for new deployment duties and council announcements.'
     },
     {
         icon: LogIn,
@@ -56,6 +58,16 @@ const features = [
         icon: CalendarDays,
         title: 'Enhanced Schedule',
         description: 'Create and manage duties with a guided workflow, detailed instructions, configurable reminders, flexible teams, and clearer volunteer assignments.'
+    },
+    {
+        icon: PanelsTopLeft,
+        title: 'One ARC workspace',
+        description: 'Officers and administrators can now open NEXUS resources and CORE deliverables alongside schedules, attendance, and records.'
+    },
+    {
+        icon: Megaphone,
+        title: 'Alerts and smarter NEXUS',
+        description: 'Read categorized council announcements, receive unread badges, and search NEXUS or switch to its compact resource view.'
     }
 ];
 
@@ -85,9 +97,9 @@ export default function WhatsNew({ isOpen, onClose }) {
                         <Sparkles size={25} />
                     </div>
                     <div>
-                        <span className="whats-new-version">V2 Update</span>
-                        <h3>Scheduling just got easier.</h3>
-                        <p>A more dependable, mobile-friendly experience for every volunteer.</p>
+                        <span className="whats-new-version">V3 Update</span>
+                        <h3>Everything ACRCY needs, together.</h3>
+                        <p>A unified, mobile-friendly workspace for volunteers.</p>
                     </div>
                 </div>
 

@@ -126,9 +126,9 @@ export default function Login() {
                             alt="Ateneo College Red Cross Youth"
                             className="login-logo-image"
                         />
-                        <span className="login-eyebrow">Member portal</span>
-                        <h1>Ateneo College</h1>
-                        <p>Red Cross Youth</p>
+                        <span className="login-eyebrow">ACRCY operations</span>
+                        <h1>ARC</h1>
+                        <p>One council. One workspace.</p>
                     </div>
 
                     {configError && (

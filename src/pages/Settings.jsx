@@ -8,8 +8,13 @@ import {
     Eye,
     EyeOff,
     Lock,
+    Moon,
+    Palette,
     Send,
-    Smartphone
+    Smartphone,
+    Sun,
+    Volume2,
+    VolumeX
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -18,6 +23,8 @@ import {
     getNotificationCapability,
     showTestNotification
 } from '../lib/notifications';
+import { getArcTheme, setArcTheme } from '../lib/theme';
+import { isArcSoundEnabled, setArcSoundEnabled } from '../lib/sounds';
 
 export default function Settings() {
     const { user, profile, updatePassword } = useAuth();
@@ -30,13 +37,20 @@ export default function Settings() {
     const [notificationState, setNotificationState] = useState(() => getNotificationCapability(user?.id));
     const [notificationLoading, setNotificationLoading] = useState(false);
     const [notificationMessage, setNotificationMessage] = useState({ type: '', text: '' });
+    const [theme, setTheme] = useState(() => getArcTheme());
+    const [soundEnabled, setSoundEnabled] = useState(() => isArcSoundEnabled());
+
+    const chooseTheme = (nextTheme) => setTheme(setArcTheme(nextTheme));
+    const chooseSound = (enabled) => {
+        setSoundEnabled(setArcSoundEnabled(enabled));
+    };
 
     const handlePasswordChange = async (event) => {
         event.preventDefault();
         setMessage({ type: '', text: '' });
 
-        if (newPassword.length < 6) {
-            setMessage({ type: 'error', text: 'Password must be at least 6 characters long.' });
+        if (newPassword.length < 12) {
+            setMessage({ type: 'error', text: 'Password must be at least 12 characters long.' });
             return;
         }
 
@@ -74,8 +88,8 @@ export default function Settings() {
             setNotificationMessage({
                 type: 'success',
                 text: state.mode === 'background'
-                    ? 'Background deployment notifications are enabled.'
-                    : 'Live deployment notifications are enabled while the app is running.'
+                    ? 'Background ARC notifications are enabled.'
+                    : 'Live ARC notifications are enabled while the app is running.'
             });
         } catch (error) {
             setNotificationState(getNotificationCapability(user?.id));
@@ -92,7 +106,7 @@ export default function Settings() {
         try {
             const state = await disableDeploymentNotifications(user?.id);
             setNotificationState(state);
-            setNotificationMessage({ type: 'success', text: 'Deployment notifications are turned off.' });
+            setNotificationMessage({ type: 'success', text: 'ARC notifications are turned off.' });
         } catch (error) {
             setNotificationMessage({ type: 'error', text: error.message });
         } finally {
@@ -146,16 +160,42 @@ export default function Settings() {
                         </div>
                         <div>
                             <dt>Role</dt>
-                            <dd className="capitalize">{profile?.role || 'Staff'}</dd>
+                            <dd className="capitalize">{profile?.role || 'Volunteer'}</dd>
                         </div>
                     </dl>
+                </section>
+
+                <section className="card appearance-settings">
+                    <div className="card-header">
+                        <div>
+                            <h2 className="card-title icon-title"><Palette size={20} /> Appearance</h2>
+                            <p className="card-subtitle">Choose how ARC looks on this device</p>
+                        </div>
+                    </div>
+                    <div className="theme-options" role="radiogroup" aria-label="ARC color theme">
+                        <button type="button" className={theme === 'light' ? 'is-active' : ''} onClick={() => chooseTheme('light')} role="radio" aria-checked={theme === 'light'}>
+                            <Sun size={21} /><span><strong>Light</strong><small>ARC paper theme</small></span>
+                        </button>
+                        <button type="button" className={theme === 'dark' ? 'is-active' : ''} onClick={() => chooseTheme('dark')} role="radio" aria-checked={theme === 'dark'}>
+                            <Moon size={21} /><span><strong>Dark</strong><small>Low-light theme</small></span>
+                        </button>
+                    </div>
+                    <div className="sound-setting-row">
+                        <div>
+                            {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                            <span><strong>Interface sounds</strong><small>Play a soft tap when controls are pressed</small></span>
+                        </div>
+                        <button type="button" className={`sound-setting-toggle ${soundEnabled ? 'is-active' : ''}`} role="switch" aria-checked={soundEnabled} onClick={() => chooseSound(!soundEnabled)}>
+                            <span />
+                        </button>
+                    </div>
                 </section>
 
                 <section className="card notification-settings">
                     <div className="card-header">
                         <div>
-                            <h2 className="card-title icon-title"><Bell size={20} /> Deployment Notifications</h2>
-                            <p className="card-subtitle">Get notified when administrators add new duties</p>
+                            <h2 className="card-title icon-title"><Bell size={20} /> ARC Notifications</h2>
+                            <p className="card-subtitle">Get notified about new deployment duties and announcements</p>
                         </div>
                         <span className={`badge ${notificationState.enabled ? 'badge-success' : 'badge-neutral'}`}>
                             {notificationStatus}
@@ -244,7 +284,7 @@ export default function Settings() {
                                     placeholder="Enter new password"
                                     autoComplete="new-password"
                                     required
-                                    minLength={6}
+                                    minLength={12}
                                 />
                                 <button
                                     type="button"
@@ -267,7 +307,7 @@ export default function Settings() {
                                     placeholder="Confirm new password"
                                     autoComplete="new-password"
                                     required
-                                    minLength={6}
+                                    minLength={12}
                                 />
                                 <button
                                     type="button"
@@ -286,6 +326,7 @@ export default function Settings() {
                     </button>
                 </form>
             </section>
+
         </div>
     );
 }
