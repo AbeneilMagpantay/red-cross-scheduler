@@ -103,11 +103,21 @@ Before treating a deployment as production-ready:
    supabase functions deploy send-deployment-notifications
    supabase functions deploy send-duty-reminders --no-verify-jwt
    ```
-3. In **Supabase Dashboard → Authentication → Sign In / Providers → Email**, keep **Confirm email** enabled. Disable public user sign-up if accounts should be created only by the organization, and leave anonymous sign-ins disabled.
+3. In **Supabase Dashboard → Authentication → Sign In / Providers → Email**, keep **Allow new users to sign up** and **Confirm email** enabled. New Auth users remain blocked until an administrator approves their request in Personnel. Leave anonymous sign-ins disabled.
 4. In the Supabase password security settings, require at least 12 characters and enable leaked-password protection when available. Require MFA for administrator accounts when the project plan supports it.
 5. Keep `SUPABASE_SERVICE_ROLE_KEY`, `VAPID_PRIVATE_KEY`, Google client secrets, and `REMINDER_CRON_SECRET` only in Supabase/Vercel secret settings. Never prefix a private value with `VITE_` or commit it to Git.
 
 The Supabase project URL, anonymous/publishable key, and VAPID public key are expected to be visible in the browser. RLS and the Edge Function checks are the security boundary for those public values.
+
+### Account approval and roles
+
+Apply `20260905_access_roles_and_approvals.sql` before enabling self-registration. Members request an account from the sign-in page; administrators review pending requests in **Personnel → Account approvals**. Approval creates a Volunteer profile, or restores an email-matched archived profile so its duty history stays connected. Administrators can promote approved members to Officer afterward.
+
+- Volunteers can view NEXUS and CORE and manage only their own duty registration.
+- Officers can edit NEXUS, CORE, upcoming schedules, teams, and assignments.
+- Administrators additionally manage Personnel, account approvals, attendance administration, swap approvals, and deletion of concluded events.
+
+The existing `send-duty-reminders` Cron run also sends background push alerts to notification-enabled administrators when new account requests are waiting, so redeploy that function after applying this update.
 
 ## Usage
 

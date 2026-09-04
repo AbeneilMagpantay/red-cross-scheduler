@@ -21,7 +21,10 @@ export const auth = {
         return supabase.auth.signUp({
             email,
             password,
-            options: { data: metadata }
+            options: {
+                data: metadata,
+                emailRedirectTo: `${window.location.origin}/`
+            }
         });
     },
     signIn: async (email, password) => {
@@ -88,7 +91,7 @@ export const db = {
             .from('personnel')
             .select('*, departments(name)')
             .eq('id', id)
-            .single();
+            .maybeSingle();
     },
 
     getPersonnelByEmail: async (email) => {
@@ -128,6 +131,45 @@ export const db = {
             .eq('id', id)
             .select()
             .single();
+    },
+
+    // ===== ACCOUNT APPROVALS =====
+    getMyAccountRequest: async (userId) => {
+        if (!supabase || !userId) return { data: null, error: null };
+        return supabase
+            .from('account_requests')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
+    },
+
+    getAccountRequests: async (status = 'pending') => {
+        if (!supabase) return { data: [], error: null };
+        let query = supabase
+            .from('account_requests')
+            .select('*')
+            .order('created_at', { ascending: true });
+        if (status) query = query.eq('status', status);
+        return query;
+    },
+
+    approveAccountRequest: async (userId) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.rpc('approve_account_request', { target_user_id: userId });
+    },
+
+    rejectAccountRequest: async (userId) => {
+        if (!supabase) return { data: null, error: { message: 'Not configured' } };
+        return supabase.rpc('reject_account_request', { target_user_id: userId });
+    },
+
+    subscribeAccountRequests: (callback) => {
+        if (!supabase) return () => {};
+        const channel = supabase
+            .channel(`account-requests-${globalThis.crypto?.randomUUID?.() || Date.now()}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'account_requests' }, callback)
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
     },
 
     // ===== DEPARTMENTS =====

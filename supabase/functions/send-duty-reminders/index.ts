@@ -77,6 +77,12 @@ type ScheduleRow = {
   personnel: { email: string | null; is_active: boolean } | null;
 };
 
+type AccountRequestRow = {
+  user_id: string;
+  name: string;
+  email: string;
+};
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
@@ -113,6 +119,16 @@ Deno.serve(async (request) => {
 
   if (schedulesError) return jsonResponse({ error: schedulesError.message }, 500);
 
+  const { data: accountRequests, error: accountRequestsError } = await adminClient
+    .from('account_requests')
+    .select('user_id, name, email')
+    .eq('status', 'pending')
+    .is('notified_at', null)
+    .order('created_at', { ascending: true })
+    .limit(20);
+
+  if (accountRequestsError) return jsonResponse({ error: accountRequestsError.message }, 500);
+
   const due = (data as ScheduleRow[] || []).flatMap((schedule) => {
     if (!schedule.start_time) return [];
     const dutyStartsAt = new Date(`${schedule.duty_date}T${schedule.start_time.slice(0, 8)}${MANILA_OFFSET}`);
@@ -125,7 +141,10 @@ Deno.serve(async (request) => {
     });
   });
 
-  if (!due.length) return jsonResponse({ checked: data?.length || 0, due: 0, delivered: 0, failed: 0 });
+  const pendingRequests = (accountRequests || []) as AccountRequestRow[];
+  if (!due.length && !pendingRequests.length) {
+    return jsonResponse({ checked: data?.length || 0, due: 0, delivered: 0, failed: 0, account_requests: 0 });
+  }
 
   // Restored and Google-linked accounts can legitimately have an auth ID that
   // differs from the preserved personnel ID. Resolve by ID first, then email.
@@ -144,14 +163,34 @@ Deno.serve(async (request) => {
       || usersByEmail.get(item.schedule.personnel?.email?.toLowerCase() || '');
     return authUser ? [{ ...item, userId: authUser.id }] : [];
   });
-  const userIds = [...new Set(resolvedDue.map(({ userId }) => userId))];
-  if (!userIds.length) return jsonResponse({ checked: data?.length || 0, due: due.length, delivered: 0, failed: 0, skipped: due.length });
 
-  const { data: subscriptions, error: subscriptionsError } = await adminClient
-    .from('push_subscriptions')
-    .select('id, user_id, endpoint, subscription')
-    .in('user_id', userIds)
+  const { data: administrators, error: administratorsError } = await adminClient
+    .from('personnel')
+    .select('id, email')
+    .eq('role', 'admin')
     .eq('is_active', true);
+  if (administratorsError) return jsonResponse({ error: administratorsError.message }, 500);
+
+  const administratorUserIds = new Set<string>();
+  (administrators || []).forEach((administrator) => {
+    const authUser = usersById.get(administrator.id)
+      || usersByEmail.get(administrator.email?.toLowerCase() || '');
+    if (authUser) administratorUserIds.add(authUser.id);
+  });
+
+  const userIds = [...new Set([
+    ...resolvedDue.map(({ userId }) => userId),
+    ...administratorUserIds,
+  ])];
+
+  const subscriptionResult = userIds.length
+    ? await adminClient
+      .from('push_subscriptions')
+      .select('id, user_id, endpoint, subscription')
+      .in('user_id', userIds)
+      .eq('is_active', true)
+    : { data: [], error: null };
+  const { data: subscriptions, error: subscriptionsError } = subscriptionResult;
 
   if (subscriptionsError) return jsonResponse({ error: subscriptionsError.message }, 500);
 
@@ -231,5 +270,61 @@ Deno.serve(async (request) => {
     }
   }
 
-  return jsonResponse({ checked: data?.length || 0, due: due.length, delivered, failed, skipped });
+  let approvalDevicesDelivered = 0;
+  let approvalDevicesFailed = 0;
+
+  if (pendingRequests.length && administratorUserIds.size) {
+    const firstRequest = pendingRequests[0];
+    const notification = JSON.stringify({
+      title: pendingRequests.length === 1 ? 'New account request' : `${pendingRequests.length} new account requests`,
+      body: pendingRequests.length === 1
+        ? `${firstRequest.name || firstRequest.email} is waiting for approval.`
+        : 'New members are waiting for an administrator to review their access.',
+      tag: 'account-approval-requests',
+      url: '/personnel',
+    });
+    const uniqueAdminEndpoints = new Set<string>();
+
+    for (const administratorUserId of administratorUserIds) {
+      const administratorSubscriptions = subscriptionsByUser.get(administratorUserId) || [];
+      for (const row of administratorSubscriptions) {
+        const subscription = getValidatedSubscription(row);
+        if (!subscription) {
+          await adminClient.from('push_subscriptions').delete().eq('id', row.id);
+          continue;
+        }
+        if (uniqueAdminEndpoints.has(row.endpoint)) continue;
+        uniqueAdminEndpoints.add(row.endpoint);
+
+        try {
+          await webpush.sendNotification(subscription, notification, { TTL: 3600, timeout: 10_000 });
+          approvalDevicesDelivered += 1;
+        } catch (error) {
+          approvalDevicesFailed += 1;
+          const statusCode = (error as { statusCode?: number }).statusCode;
+          if (statusCode === 404 || statusCode === 410) {
+            await adminClient.from('push_subscriptions').delete().eq('id', row.id);
+          }
+        }
+      }
+    }
+
+    // Mark the batch after one delivery attempt. Administrators without a push
+    // subscription still retain the persistent Personnel badge and queue.
+    await adminClient
+      .from('account_requests')
+      .update({ notified_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .in('user_id', pendingRequests.map((item) => item.user_id));
+  }
+
+  return jsonResponse({
+    checked: data?.length || 0,
+    due: due.length,
+    delivered,
+    failed,
+    skipped,
+    account_requests: pendingRequests.length,
+    approval_devices_delivered: approvalDevicesDelivered,
+    approval_devices_failed: approvalDevicesFailed,
+  });
 });

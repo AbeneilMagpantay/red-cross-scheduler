@@ -7,6 +7,8 @@ import {
     getCoreLineKeys,
     parseCustomCoreRows,
     roleCanAccessArc,
+    roleCanEditArc,
+    roleCanViewArc,
     sanitizeArcHtml
 } from './arc.js';
 
@@ -15,6 +17,16 @@ test('allows only Admin and Officer roles into ARC modules', () => {
     assert.equal(roleCanAccessArc('officer'), true);
     assert.equal(roleCanAccessArc('volunteer'), false);
     assert.equal(roleCanAccessArc('staff'), false);
+});
+
+test('allows every active ARC role to view NEXUS and CORE but limits editing', () => {
+    assert.equal(roleCanViewArc('admin'), true);
+    assert.equal(roleCanViewArc('officer'), true);
+    assert.equal(roleCanViewArc('volunteer'), true);
+    assert.equal(roleCanViewArc('staff'), false);
+    assert.equal(roleCanEditArc('admin'), true);
+    assert.equal(roleCanEditArc('officer'), true);
+    assert.equal(roleCanEditArc('volunteer'), false);
 });
 
 test('builds CORE defaults with numbered Lead deliverables', () => {

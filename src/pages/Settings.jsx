@@ -195,7 +195,7 @@ export default function Settings() {
                     <div className="card-header">
                         <div>
                             <h2 className="card-title icon-title"><Bell size={20} /> ARC Notifications</h2>
-                            <p className="card-subtitle">Get notified about new deployment duties and announcements</p>
+                            <p className="card-subtitle">Get notified about new deployment duties, announcements, and account approvals</p>
                         </div>
                         <span className={`badge ${notificationState.enabled ? 'badge-success' : 'badge-neutral'}`}>
                             {notificationStatus}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { db, auth } from '../lib/supabase';
+import { db } from '../lib/supabase';
 import Modal from '../components/Modal';
 import {
     Plus,
@@ -10,9 +10,11 @@ import {
     Phone,
     Mail,
     User,
-    Key,
     AlertCircle,
-    CheckCircle
+    CheckCircle,
+    Clock3,
+    UserCheck,
+    UserX
 } from 'lucide-react';
 
 const getPersonnelData = (formData) => {
@@ -26,6 +28,7 @@ const getPersonnelData = (formData) => {
 export default function Personnel() {
     const [personnel, setPersonnel] = useState([]);
     const [departments, setDepartments] = useState([]);
+    const [accountRequests, setAccountRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -42,25 +45,26 @@ export default function Personnel() {
         role: 'volunteer',
         department_id: '',
         is_active: true,
-        password: '',
-        createAccount: true,
         license_type: '',
         license_expiry: ''
     });
 
     useEffect(() => {
         loadData();
+        return db.subscribeAccountRequests(loadData);
     }, []);
 
     const loadData = async () => {
         try {
-            const [personnelRes, deptRes] = await Promise.all([
+            const [personnelRes, deptRes, requestRes] = await Promise.all([
                 db.getPersonnel(),
-                db.getDepartments()
+                db.getDepartments(),
+                db.getAccountRequests('pending')
             ]);
 
             setPersonnel(personnelRes.data || []);
             setDepartments(deptRes.data || []);
+            setAccountRequests(requestRes.data || []);
         } catch (error) {
             console.error('Error loading data:', error);
         } finally {
@@ -80,8 +84,6 @@ export default function Personnel() {
                 role: person.role,
                 department_id: person.department_id || '',
                 is_active: person.is_active,
-                password: '',
-                createAccount: false,
                 license_type: person.license_type || '',
                 license_expiry: person.license_expiry || ''
             });
@@ -94,8 +96,6 @@ export default function Personnel() {
                 role: 'volunteer',
                 department_id: '',
                 is_active: true,
-                password: '',
-                createAccount: true,
                 license_type: '',
                 license_expiry: ''
             });
@@ -110,16 +110,6 @@ export default function Personnel() {
         setSuccess('');
     };
 
-    // Generate a random password
-    const generatePassword = () => {
-        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%';
-        let password = '';
-        for (let i = 0; i < 12; i++) {
-            password += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        setFormData({ ...formData, password });
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -132,53 +122,13 @@ export default function Personnel() {
                 await db.updatePersonnel(editingPerson.id, getPersonnelData(formData));
                 setSuccess('Personnel updated successfully!');
             } else {
-                // Create new personnel
-                if (formData.createAccount && formData.email) {
-                    // First, create auth account
-                    if (!formData.password) {
-                        setError('Please enter a password for the account');
-                        setSaving(false);
-                        return;
-                    }
-
-                    // Call Auth SignUp
-                    const { data: authData, error: authError } = await auth.signUp(
-                        formData.email.trim().toLowerCase(),
-                        formData.password,
-                        { name: formData.name }
-                    );
-
-                    if (authError) {
-                        setError(`Account creation failed: ${authError.message}`);
-                        setSaving(false);
-                        return;
-                    }
-
-                    // Create personnel record with the auth user's ID
-                    const personnelWithId = {
-                        ...getPersonnelData(formData),
-                        id: authData.user?.id
-                    };
-
-                    const { error: dbError } = await db.createPersonnel(personnelWithId);
-                    if (dbError) {
-                        setError(`Personnel creation failed: ${dbError.message}`);
-                        setSaving(false);
-                        return;
-                    }
-
-                    setSuccess(`Account created! Temporary password: ${formData.password}`);
-                } else {
-                    // Create personnel without auth account
-                    await db.createPersonnel(getPersonnelData(formData));
-                    setSuccess('Personnel added successfully!');
-                }
+                const { error: createError } = await db.createPersonnel(getPersonnelData(formData));
+                if (createError) throw createError;
+                setSuccess('Personnel record added. They can request their own login from the sign-in page.');
             }
 
             setTimeout(() => {
-                if (!editingPerson || !formData.createAccount) { // Keep open if showing password
-                    handleCloseModal();
-                }
+                handleCloseModal();
                 loadData();
             }, 2000);
         } catch (error) {
@@ -203,6 +153,34 @@ export default function Personnel() {
         } catch (error) {
             console.error('Error archiving personnel:', error);
             alert('An unexpected error occurred while archiving.');
+        }
+    };
+
+    const handleApproveRequest = async (request) => {
+        if (!confirm(`Approve ${request.name || request.email} as a volunteer? You can promote them to Officer afterward.`)) return;
+        setSaving(true);
+        try {
+            const { error: approvalError } = await db.approveAccountRequest(request.user_id);
+            if (approvalError) throw approvalError;
+            await loadData();
+        } catch (approvalError) {
+            alert(`Could not approve this request: ${approvalError.message}`);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleRejectRequest = async (request) => {
+        if (!confirm(`Decline the account request from ${request.name || request.email}?`)) return;
+        setSaving(true);
+        try {
+            const { error: rejectionError } = await db.rejectAccountRequest(request.user_id);
+            if (rejectionError) throw rejectionError;
+            await loadData();
+        } catch (rejectionError) {
+            alert(`Could not decline this request: ${rejectionError.message}`);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -302,6 +280,34 @@ export default function Personnel() {
             </div>
 
             {/* Personnel Table */}
+            {accountRequests.length > 0 && (
+                <section className="card account-requests-card mb-lg">
+                    <div className="card-header">
+                        <div>
+                            <h2 className="card-title"><Clock3 size={20} /> Account approvals</h2>
+                            <p className="card-subtitle">Review new members before they can enter the workspace.</p>
+                        </div>
+                        <span className="badge badge-warning">{accountRequests.length} pending</span>
+                    </div>
+                    <div className="account-request-list">
+                        {accountRequests.map((request) => (
+                            <article className="account-request-row" key={request.user_id}>
+                                <div className="user-avatar">{request.name?.charAt(0).toUpperCase() || 'U'}</div>
+                                <div className="account-request-copy">
+                                    <strong>{request.name || 'New member'}</strong>
+                                    <span>{request.email}</span>
+                                    <small>Requested {new Date(request.created_at).toLocaleString()}</small>
+                                </div>
+                                <div className="account-request-actions">
+                                    <button type="button" className="btn btn-primary btn-sm" onClick={() => handleApproveRequest(request)} disabled={saving}><UserCheck size={16} /> Approve</button>
+                                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleRejectRequest(request)} disabled={saving}><UserX size={16} /> Decline</button>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                </section>
+            )}
+
             <div className="card">
                 {filteredPersonnel.length === 0 ? (
                     <div className="empty-state">
@@ -528,53 +534,8 @@ export default function Personnel() {
                         </div>
                     </div>
 
-                    {/* Account Creation Section - Only for new personnel */}
                     {!editingPerson && (
-                        <div className="form-group" style={{
-                            padding: 'var(--space-md)',
-                            background: 'var(--bg-secondary)',
-                            borderRadius: 'var(--radius-md)',
-                            marginTop: 'var(--space-md)'
-                        }}>
-                            <label className="flex items-center gap-md mb-md" style={{ cursor: 'pointer' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={formData.createAccount}
-                                    onChange={(e) => setFormData({ ...formData, createAccount: e.target.checked })}
-                                    style={{ width: 18, height: 18 }}
-                                />
-                                <span style={{ fontWeight: 500 }}>
-                                    <Key size={16} style={{ display: 'inline', marginRight: 8 }} />
-                                    Create login account
-                                </span>
-                            </label>
-
-                            {formData.createAccount && (
-                                <div>
-                                    <label className="form-label">Temporary Password *</label>
-                                    <div className="flex gap-sm">
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            value={formData.password}
-                                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                            placeholder="Enter password"
-                                            style={{ flex: 1 }}
-                                        />
-                                        <button
-                                            type="button"
-                                            className="btn btn-secondary"
-                                            onClick={generatePassword}
-                                        >
-                                            Generate
-                                        </button>
-                                    </div>
-                                    <p className="text-sm text-muted mt-sm">
-                                        Share this password with the new user. They can log in with their email and this password.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
+                        <p className="personnel-account-note">Login accounts are now created by members from the sign-in page and activated after administrator approval.</p>
                     )}
 
                     <div className="form-group">

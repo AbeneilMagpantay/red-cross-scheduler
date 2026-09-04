@@ -48,7 +48,7 @@ const timeAgo = (value) => {
 };
 
 export default function Alerts() {
-    const { canAccessArc, profile, user } = useAuth();
+    const { canEditArc, profile, user } = useAuth();
     const [alerts, setAlerts] = useState([]);
     const [activeFilter, setActiveFilter] = useState('All');
     const [loading, setLoading] = useState(true);
@@ -111,7 +111,7 @@ export default function Alerts() {
     }, [activeFilter, alerts]);
 
     const openComposer = (alert = null) => {
-        if (!canAccessArc) return;
+        if (!canEditArc) return;
         setEditingId(alert?.id || null);
         setDraft(alert ? {
             category: alert.category || 'General',
@@ -136,7 +136,7 @@ export default function Alerts() {
     };
 
     const saveAnnouncement = async () => {
-        if (!canAccessArc || saving) return;
+        if (!canEditArc || saving) return;
         const bodyHtml = sanitizeArcHtml(editorRef.current?.innerHTML || '');
         if (!draft.title.trim() || !arcHtmlToText(bodyHtml)) {
             setNotice('Add both a title and announcement message before publishing.');
@@ -207,7 +207,7 @@ export default function Alerts() {
     };
 
     const togglePin = async (alert) => {
-        if (!canAccessArc) return;
+        if (!canEditArc) return;
         if (!alert.is_pinned && alerts.filter((item) => item.is_pinned).length >= 3) {
             setNotice('Only three urgent announcements can be pinned at once.');
             return;
@@ -228,7 +228,7 @@ export default function Alerts() {
     };
 
     const moveAlert = async (alert, direction) => {
-        if (!canAccessArc) return;
+        if (!canEditArc) return;
         const group = sortArcAlerts(alerts).filter((item) => item.is_pinned === alert.is_pinned);
         const index = group.findIndex((item) => item.id === alert.id);
         const nextIndex = index + direction;
@@ -249,7 +249,7 @@ export default function Alerts() {
     };
 
     const deleteAnnouncement = async (alert) => {
-        if (!canAccessArc || !window.confirm(`Delete “${alert.title}” for everyone?`)) return;
+        if (!canEditArc || !window.confirm(`Delete “${alert.title}” for everyone?`)) return;
         setSyncStatus('Saving…');
         const { error: deleteError } = await db.deleteArcAnnouncement(alert.id);
         if (deleteError) {
@@ -264,7 +264,7 @@ export default function Alerts() {
     };
 
     const renotify = async (alert) => {
-        if (!canAccessArc || !window.confirm(`Send “${alert.title}” to notification-enabled devices again?`)) return;
+        if (!canEditArc || !window.confirm(`Send “${alert.title}” to notification-enabled devices again?`)) return;
         setSyncStatus('Sending…');
         const { data, error: notificationError } = await db.sendArcAnnouncementNotification(alert.id);
         if (notificationError) {
@@ -291,7 +291,7 @@ export default function Alerts() {
                 <div className="arc-module-actions">
                     <span className={`arc-sync-pill ${syncStatus.includes('failed') ? 'is-error' : ''}`}><CheckCircle2 size={15} /> {syncStatus}</span>
                     <button type="button" className="btn btn-secondary" onClick={() => setHelpOpen(true)}><HelpCircle size={17} /> Guide</button>
-                    {canAccessArc && <button type="button" className="btn btn-primary arc-shadow-button" onClick={() => openComposer()}><Plus size={17} /> Add announcement</button>}
+                    {canEditArc && <button type="button" className="btn btn-primary arc-shadow-button" onClick={() => openComposer()}><Plus size={17} /> Add announcement</button>}
                 </div>
             </header>
 
@@ -325,7 +325,7 @@ export default function Alerts() {
                             <div className="alert-card-top">
                                 <span className={`alert-category ${getAlertCategoryClass(alert.category)}`}>{alert.category}</span>
                                 {alert.is_pinned && <span className="alert-pinned"><Pin size={13} /> Pinned</span>}
-                                {canAccessArc && (
+                                {canEditArc && (
                                     <div className="alert-card-tools" onClick={(event) => event.stopPropagation()}>
                                         {activeFilter === 'All' && <button type="button" onClick={() => moveAlert(alert, -1)} disabled={groupIndex === 0} aria-label="Move announcement up"><ArrowUp size={15} /></button>}
                                         {activeFilter === 'All' && <button type="button" onClick={() => moveAlert(alert, 1)} disabled={groupIndex === group.length - 1} aria-label="Move announcement down"><ArrowDown size={15} /></button>}

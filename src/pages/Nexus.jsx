@@ -36,7 +36,7 @@ const MAX_QR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_QR_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export default function Nexus() {
-    const { profile } = useAuth();
+    const { profile, canEditArc } = useAuth();
     const [resources, setResources] = useState([]);
     const [imageUrls, setImageUrls] = useState({});
     const [loading, setLoading] = useState(true);
@@ -125,6 +125,7 @@ export default function Nexus() {
     };
 
     const saveResource = async (id, updates) => {
+        if (!canEditArc) return false;
         markBusy(id, true);
         setStatus('Saving…');
         try {
@@ -146,6 +147,7 @@ export default function Nexus() {
     };
 
     const addResource = async () => {
+        if (!canEditArc) return;
         setStatus('Saving…');
         try {
             const { data, error: createError } = await db.createArcResource({
@@ -165,6 +167,7 @@ export default function Nexus() {
     };
 
     const removeResource = async (resource) => {
+        if (!canEditArc) return;
         if (!window.confirm(`Delete ${resource.title || 'this resource'}?`)) return;
         markBusy(resource.id, true);
         setStatus('Saving…');
@@ -184,6 +187,7 @@ export default function Nexus() {
     };
 
     const moveResource = async (id, direction) => {
+        if (!canEditArc) return;
         const currentIndex = resources.findIndex((resource) => resource.id === id);
         const nextIndex = currentIndex + direction;
         if (currentIndex < 0 || nextIndex < 0 || nextIndex >= resources.length) return;
@@ -203,6 +207,7 @@ export default function Nexus() {
     };
 
     const uploadQr = async (resource, file) => {
+        if (!canEditArc) return;
         if (!file) return;
         if (!ALLOWED_QR_TYPES.has(file.type)) {
             window.alert('Choose a PNG, JPEG, or WebP image.');
@@ -277,7 +282,7 @@ export default function Nexus() {
     };
 
     const saveDetail = async () => {
-        if (!selectedResource || !detailDraft) return;
+        if (!canEditArc || !selectedResource || !detailDraft) return;
         const normalizedUrl = normalizeExternalUrl(detailDraft.url);
         if (detailDraft.url.trim() && !normalizedUrl) {
             window.alert('Enter a complete http:// or https:// URL.');
@@ -322,6 +327,7 @@ export default function Nexus() {
                 </div>
                 <div className="arc-module-actions">
                     <span className={`arc-sync-pill ${status.includes('failed') ? 'is-error' : ''}`}><CheckCircle2 size={15} /> {status}</span>
+                    {!canEditArc && <span className="badge badge-neutral">View only</span>}
                     <button type="button" className={`btn btn-secondary nexus-view-toggle ${viewMode === 'pill' ? 'is-active' : ''}`} onClick={toggleViewMode} aria-label={`Switch to ${viewMode === 'grid' ? 'compact' : 'grid'} view`}>
                         {viewMode === 'grid' ? <LayoutGrid size={17} /> : <Rows3 size={17} />} {viewMode === 'grid' ? 'Grid' : 'Compact'}
                     </button>
@@ -338,7 +344,7 @@ export default function Nexus() {
                         <Search size={17} /> Search
                     </button>
                     <button type="button" className="btn btn-secondary arc-shadow-button" onClick={() => exportElement(boardRef.current, 'arc-nexus-board.png')}><Download size={17} /> Save board</button>
-                    <button type="button" className="btn btn-primary arc-shadow-button" onClick={addResource}><Plus size={17} /> Add resource</button>
+                    {canEditArc && <button type="button" className="btn btn-primary arc-shadow-button" onClick={addResource}><Plus size={17} /> Add resource</button>}
                 </div>
             </header>
 
@@ -355,7 +361,7 @@ export default function Nexus() {
             <section className={`nexus-board nexus-view-${viewMode}`} ref={boardRef}>
                 <div className="nexus-board-intro">
                     <div><span>ACRCY shared board</span><strong>{searchQuery ? `${visibleResources.length} of ${resources.length}` : resources.length} resource{resources.length === 1 ? '' : 's'}</strong></div>
-                    <p>Changes save automatically and appear for every Admin and Officer.</p>
+                    <p>{canEditArc ? 'Changes save automatically and appear for every member.' : 'Resources are maintained by Officers and Administrators.'}</p>
                 </div>
 
                 <div className="nexus-grid">
@@ -365,24 +371,28 @@ export default function Nexus() {
                         const isExpanded = expandedPills.includes(resource.id);
                         return (
                             <article className={`nexus-card ${isBusy ? 'is-busy' : ''} ${isExpanded ? 'is-expanded' : ''}`} data-resource-id={resource.id} key={resource.id}>
-                                <label className={`nexus-qr ${imageUrls[resource.id] ? 'has-image' : ''}`}>
+                                {canEditArc ? <label className={`nexus-qr ${imageUrls[resource.id] ? 'has-image' : ''}`}>
                                     {imageUrls[resource.id]
                                         ? <img src={imageUrls[resource.id]} alt={`QR code for ${resource.title}`} />
                                         : <span><Upload size={26} /><strong>Add QR image</strong><small>PNG, JPEG, or WebP</small></span>}
                                     <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadQr(resource, event.target.files?.[0])} disabled={isBusy} />
-                                </label>
+                                </label> : <div className={`nexus-qr ${imageUrls[resource.id] ? 'has-image' : ''}`}>
+                                    {imageUrls[resource.id]
+                                        ? <img src={imageUrls[resource.id]} alt={`QR code for ${resource.title}`} />
+                                        : <span><QrCode size={26} /><strong>No QR image</strong></span>}
+                                </div>}
 
-                                <input
+                                {canEditArc ? <input
                                     className="nexus-title-input"
                                     value={resource.title || ''}
                                     onChange={(event) => updateLocalResource(resource.id, { title: event.target.value })}
                                     onBlur={(event) => saveResource(resource.id, { title: event.target.value.trim() || 'ARC Resource' })}
                                     aria-label="Resource title"
                                     disabled={isBusy}
-                                />
+                                /> : <strong className="nexus-title-input nexus-title-readonly">{resource.title || 'ARC Resource'}</strong>}
                                 <div className="nexus-url-row">
                                     <LinkIcon size={15} />
-                                    <input
+                                    {canEditArc ? <input
                                         type="url"
                                         value={resource.url || ''}
                                         onChange={(event) => updateLocalResource(resource.id, { url: event.target.value })}
@@ -398,7 +408,7 @@ export default function Nexus() {
                                         }}
                                         aria-label={`URL for ${resource.title}`}
                                         disabled={isBusy}
-                                    />
+                                    /> : <span className="nexus-url-readonly">{resource.url || 'No link provided'}</span>}
                                     {normalizeExternalUrl(resource.url) && <a href={normalizeExternalUrl(resource.url)} target="_blank" rel="noreferrer" aria-label={`Open ${resource.title}`}><ExternalLink size={15} /></a>}
                                 </div>
 
@@ -407,12 +417,12 @@ export default function Nexus() {
                                 <button type="button" className="nexus-pill-toggle" onClick={() => togglePill(resource.id)} aria-label={isExpanded ? 'Collapse resource actions' : 'Expand resource actions'} aria-expanded={isExpanded}><ChevronDown size={19} /></button>
 
                                 <div className="nexus-card-actions">
-                                    <button type="button" onClick={() => moveResource(resource.id, -1)} disabled={isBusy || resourceIndex === 0} aria-label="Move left"><ArrowLeft size={16} /></button>
-                                    <button type="button" onClick={() => moveResource(resource.id, 1)} disabled={isBusy || resourceIndex === resources.length - 1} aria-label="Move right"><ArrowRight size={16} /></button>
+                                    {canEditArc && <button type="button" onClick={() => moveResource(resource.id, -1)} disabled={isBusy || resourceIndex === 0} aria-label="Move left"><ArrowLeft size={16} /></button>}
+                                    {canEditArc && <button type="button" onClick={() => moveResource(resource.id, 1)} disabled={isBusy || resourceIndex === resources.length - 1} aria-label="Move right"><ArrowRight size={16} /></button>}
                                     <button type="button" onClick={() => copyUrl(resource)} aria-label="Copy URL"><Clipboard size={16} /></button>
                                     <button type="button" onClick={() => exportResource(resource)} aria-label="Save resource card"><Download size={16} /></button>
                                     <button type="button" onClick={() => setSelectedId(resource.id)} aria-label="Open resource details"><Maximize2 size={16} /></button>
-                                    <button type="button" className="is-danger" onClick={() => removeResource(resource)} disabled={isBusy} aria-label="Delete resource"><Trash2 size={16} /></button>
+                                    {canEditArc && <button type="button" className="is-danger" onClick={() => removeResource(resource)} disabled={isBusy} aria-label="Delete resource"><Trash2 size={16} /></button>}
                                 </div>
                             </article>
                         );
@@ -422,8 +432,8 @@ export default function Nexus() {
                         <div className="nexus-empty">
                             <FileImage size={38} />
                             <strong>Your resource board is ready.</strong>
-                            <span>Add the first QR resource to begin.</span>
-                            <button type="button" className="btn btn-primary" onClick={addResource}><Plus size={17} /> Add resource</button>
+                            <span>{canEditArc ? 'Add the first QR resource to begin.' : 'No resources have been published yet.'}</span>
+                            {canEditArc && <button type="button" className="btn btn-primary" onClick={addResource}><Plus size={17} /> Add resource</button>}
                         </div>
                     )}
 
@@ -445,33 +455,33 @@ export default function Nexus() {
                             {imageUrls[selectedResource.id]
                                 ? <img src={imageUrls[selectedResource.id]} alt={`QR code for ${selectedResource.title}`} />
                                 : <div><QrCode size={54} /><span>No QR image uploaded</span></div>}
-                            <label className="btn btn-secondary"><Upload size={16} /> Replace QR<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadQr(selectedResource, event.target.files?.[0])} /></label>
+                            {canEditArc && <label className="btn btn-secondary"><Upload size={16} /> Replace QR<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadQr(selectedResource, event.target.files?.[0])} /></label>}
                         </div>
                         <div className="nexus-detail-content">
-                            <div className="form-group"><label className="form-label">Resource title</label><input className="form-input" value={detailDraft.title} onChange={(event) => setDetailDraft({ ...detailDraft, title: event.target.value })} /></div>
-                            <div className="form-group"><label className="form-label">Resource URL</label><input type="url" className="form-input" value={detailDraft.url} onChange={(event) => setDetailDraft({ ...detailDraft, url: event.target.value })} /></div>
+                            <div className="form-group"><label className="form-label">Resource title</label><input className="form-input" value={detailDraft.title} onChange={(event) => setDetailDraft({ ...detailDraft, title: event.target.value })} readOnly={!canEditArc} /></div>
+                            <div className="form-group"><label className="form-label">Resource URL</label><input type="url" className="form-input" value={detailDraft.url} onChange={(event) => setDetailDraft({ ...detailDraft, url: event.target.value })} readOnly={!canEditArc} /></div>
                             <div className="form-group">
                                 <label className="form-label">Description</label>
-                                <div className="arc-format-toolbar" aria-label="Description formatting">
+                                {canEditArc && <div className="arc-format-toolbar" aria-label="Description formatting">
                                     <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('bold'); }} aria-label="Bold"><Bold size={16} /></button>
                                     <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('italic'); }} aria-label="Italic"><Italic size={16} /></button>
                                     <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('underline'); }} aria-label="Underline"><Underline size={16} /></button>
                                     <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('insertOrderedList'); }} aria-label="Numbered list"><ListOrdered size={16} /></button>
                                     <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('insertUnorderedList'); }} aria-label="Bulleted list"><List size={16} /></button>
-                                </div>
+                                </div>}
                                 <div
                                     key={selectedResource.id}
                                     ref={descriptionEditorRef}
                                     className="nexus-rich-editor"
-                                    contentEditable
+                                    contentEditable={canEditArc}
                                     suppressContentEditableWarning
                                     dangerouslySetInnerHTML={{ __html: sanitizeArcHtml(detailDraft.description_html) }}
                                 />
                             </div>
                         </div>
                         <div className="modal-footer nexus-detail-actions">
-                            <button type="button" className="btn btn-secondary" onClick={() => setSelectedId(null)}><X size={17} /> Cancel</button>
-                            <button type="button" className="btn btn-primary" onClick={saveDetail} disabled={busyIds.includes(selectedResource.id)}><Save size={17} /> Save resource</button>
+                            <button type="button" className="btn btn-secondary" onClick={() => setSelectedId(null)}><X size={17} /> {canEditArc ? 'Cancel' : 'Close'}</button>
+                            {canEditArc && <button type="button" className="btn btn-primary" onClick={saveDetail} disabled={busyIds.includes(selectedResource.id)}><Save size={17} /> Save resource</button>}
                         </div>
                     </div>
                 )}
