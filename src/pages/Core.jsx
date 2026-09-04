@@ -27,7 +27,7 @@ import {
     sanitizeArcHtml
 } from '../lib/arc';
 
-function EditableField({ fieldKey, value, onCommit, className = '' }) {
+function EditableField({ fieldKey, value, onCommit, className = '', editable = false }) {
     const fieldRef = useRef(null);
 
     useEffect(() => {
@@ -39,13 +39,13 @@ function EditableField({ fieldKey, value, onCommit, className = '' }) {
     return (
         <div
             ref={fieldRef}
-            className={`core-editable ${className}`}
-            contentEditable
+            className={`core-editable ${editable ? '' : 'is-readonly'} ${className}`}
+            contentEditable={editable}
             suppressContentEditableWarning
-            spellCheck
+            spellCheck={editable}
             data-field-key={fieldKey}
             dangerouslySetInnerHTML={{ __html: sanitizeArcHtml(value || '') }}
-            onBlur={(event) => onCommit(fieldKey, sanitizeArcHtml(event.currentTarget.innerHTML))}
+            onBlur={editable ? (event) => onCommit(fieldKey, sanitizeArcHtml(event.currentTarget.innerHTML)) : undefined}
         />
     );
 }
@@ -53,7 +53,7 @@ function EditableField({ fieldKey, value, onCommit, className = '' }) {
 const createCustomSlug = () => `custom-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
 
 export default function Core() {
-    const { profile } = useAuth();
+    const { profile, canEditArc } = useAuth();
     const defaultFields = useMemo(() => createDefaultCoreFields(), []);
     const [fields, setFields] = useState(defaultFields);
     const [loading, setLoading] = useState(true);
@@ -102,6 +102,7 @@ export default function Core() {
     }, [loadFields]);
 
     const saveField = async (fieldKey, rawValue) => {
+        if (!canEditArc) return;
         const value = fieldKey === 'customRows' || fieldKey.startsWith('status-')
             ? String(rawValue ?? '')
             : sanitizeArcHtml(rawValue ?? '');
@@ -203,12 +204,13 @@ export default function Core() {
         <div className="arc-module-page core-page">
             <header className="arc-module-header">
                 <div>
-                    <span className="arc-module-kicker"><ListChecks size={16} /> Officers’ workspace</span>
+                    <span className="arc-module-kicker"><ListChecks size={16} /> Shared council workspace</span>
                     <h1>CORE</h1>
                     <p>A shared monthly view of committee commitments, progress, and deadlines.</p>
                 </div>
                 <div className="arc-module-actions">
                     <span className={`arc-sync-pill ${syncStatus.includes('failed') ? 'is-error' : ''}`}><CheckCircle2 size={15} /> {syncStatus}</span>
+                    {!canEditArc && <span className="badge badge-neutral">View only</span>}
                     <button type="button" className="btn btn-primary arc-shadow-button" onClick={exportTracker} disabled={savingImage}><Download size={17} /> {savingImage ? 'Preparing…' : 'Save image'}</button>
                 </div>
             </header>
@@ -217,20 +219,20 @@ export default function Core() {
 
             <section className="core-sheet" ref={trackerRef}>
                 <div className="core-meta-grid">
-                    <div><span>Month</span><EditableField fieldKey="month-value" value={fields['month-value']} onCommit={saveField} /></div>
-                    <div><span>Last updated</span><EditableField fieldKey="updated-value" value={fields['updated-value']} onCommit={saveField} /></div>
-                    <div><span>Updated by</span><EditableField fieldKey="updated-by-value" value={fields['updated-by-value']} onCommit={saveField} /></div>
+                    <div><span>Month</span><EditableField fieldKey="month-value" value={fields['month-value']} onCommit={saveField} editable={canEditArc} /></div>
+                    <div><span>Last updated</span><EditableField fieldKey="updated-value" value={fields['updated-value']} onCommit={saveField} editable={canEditArc} /></div>
+                    <div><span>Updated by</span><EditableField fieldKey="updated-by-value" value={fields['updated-by-value']} onCommit={saveField} editable={canEditArc} /></div>
                     <div className="core-meta-icon"><ClipboardCheck size={23} /></div>
                 </div>
 
-                <div className="arc-format-toolbar core-format-toolbar" aria-label="CORE text formatting">
+                {canEditArc && <div className="arc-format-toolbar core-format-toolbar" aria-label="CORE text formatting">
                     <span>Formatting</span>
                     <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('bold'); }} aria-label="Bold"><Bold size={16} /></button>
                     <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('italic'); }} aria-label="Italic"><Italic size={16} /></button>
                     <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('underline'); }} aria-label="Underline"><Underline size={16} /></button>
                     <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('insertOrderedList'); }} aria-label="Numbered list"><ListOrdered size={16} /></button>
                     <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('insertUnorderedList'); }} aria-label="Bulleted list"><List size={16} /></button>
-                </div>
+                </div>}
 
                 <div className="core-table-wrap">
                     <table className="core-table">
@@ -254,14 +256,14 @@ export default function Core() {
 
                                 return (
                                     <tr key={row.slug}>
-                                        <td data-label="Officer / Committee" className={`core-officer-cell ${row.color || 'custom'}`}><EditableField fieldKey={`officer-${row.slug}`} value={fields[`officer-${row.slug}`] ?? row.label} onCommit={saveField} /></td>
-                                        <td data-label="Deliverable" className="core-deliverable-cell"><EditableField fieldKey={deliverableKey} value={deliverableValue} onCommit={saveField} /></td>
+                                        <td data-label="Officer / Committee" className={`core-officer-cell ${row.color || 'custom'}`}><EditableField fieldKey={`officer-${row.slug}`} value={fields[`officer-${row.slug}`] ?? row.label} onCommit={saveField} editable={canEditArc} /></td>
+                                        <td data-label="Deliverable" className="core-deliverable-cell"><EditableField fieldKey={deliverableKey} value={deliverableValue} onCommit={saveField} editable={canEditArc} /></td>
                                         <td data-label="Status"><div className="core-line-stack">{statusKeys.map((key) => {
                                             const value = fields[key] || 'Not Started';
-                                            return <select key={key} className={`core-status ${getCoreStatusClass(value)}`} value={value} onChange={(event) => saveField(key, event.target.value)}>{CORE_STATUSES.map((status) => <option key={status}>{status}</option>)}</select>;
+                                            return <select key={key} className={`core-status ${getCoreStatusClass(value)}`} value={value} onChange={(event) => saveField(key, event.target.value)} disabled={!canEditArc}>{CORE_STATUSES.map((status) => <option key={status}>{status}</option>)}</select>;
                                         })}</div></td>
-                                        <td data-label="Deadline"><div className="core-line-stack">{deadlineKeys.map((key) => <EditableField key={key} fieldKey={key} value={fields[key] || 'Set a date'} onCommit={saveField} className="core-line-field" />)}</div></td>
-                                        <td data-label="Remarks"><div className="core-line-stack">{remarkKeys.map((key) => <EditableField key={key} fieldKey={key} value={fields[key] || '—'} onCommit={saveField} className="core-line-field" />)}</div></td>
+                                        <td data-label="Deadline"><div className="core-line-stack">{deadlineKeys.map((key) => <EditableField key={key} fieldKey={key} value={fields[key] || 'Set a date'} onCommit={saveField} className="core-line-field" editable={canEditArc} />)}</div></td>
+                                        <td data-label="Remarks"><div className="core-line-stack">{remarkKeys.map((key) => <EditableField key={key} fieldKey={key} value={fields[key] || '—'} onCommit={saveField} className="core-line-field" editable={canEditArc} />)}</div></td>
                                     </tr>
                                 );
                             })}
@@ -269,12 +271,12 @@ export default function Core() {
                     </table>
                 </div>
 
-                <div className="core-row-actions">
+                {canEditArc && <div className="core-row-actions">
                     <button type="button" className="btn btn-secondary" onClick={addRow}><Plus size={16} /> Add row</button>
                     <button type="button" className="btn btn-secondary" onClick={removeRow}><Minus size={16} /> Remove row</button>
-                </div>
+                </div>}
 
-                <footer className="core-footer"><Info size={15} /><EditableField fieldKey="tracker-footnote" value={fields['tracker-footnote']} onCommit={saveField} /></footer>
+                <footer className="core-footer"><Info size={15} /><EditableField fieldKey="tracker-footnote" value={fields['tracker-footnote']} onCommit={saveField} editable={canEditArc} /></footer>
             </section>
         </div>
     );

@@ -26,6 +26,7 @@ if (!supabaseUrl || !anonKey) {
         'arc_resources',
         'arc_core_fields',
         'arc_announcements',
+        'account_requests',
         'push_subscriptions'
     ];
     let failed = false;
@@ -54,7 +55,7 @@ if (!supabaseUrl || !anonKey) {
     }
 
     if (failed) {
-        console.error('Security smoke check failed. Confirm that 20260828_security_hardening.sql was applied to this Supabase project.');
+        console.error('Security smoke check failed. Confirm that all Supabase migrations were applied to this project.');
         process.exitCode = 1;
     } else {
         console.log('Anonymous read smoke check passed. This does not replace authenticated role testing or Supabase Advisors.');

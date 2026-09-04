@@ -141,8 +141,8 @@ Deno.serve(async (request) => {
     notificationTag = `arc-alert-${announcement.id}`;
     notificationUrl = '/alerts';
   } else {
-    if (personnel.role !== 'admin') {
-      return jsonResponse({ error: 'Only active administrators can send deployment notifications' }, 403);
+    if (!['admin', 'officer'].includes(personnel.role)) {
+      return jsonResponse({ error: 'Only active administrators and officers can send deployment notifications' }, 403);
     }
 
     const { data: schedule, error: scheduleError } = await adminClient

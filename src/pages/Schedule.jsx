@@ -114,7 +114,7 @@ const statusLabels = {
 };
 
 export default function Schedule() {
-    const { profile, isAdmin } = useAuth();
+    const { profile, isAdmin, canManageSchedule } = useAuth();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [view, setView] = useState('month');
@@ -246,7 +246,7 @@ export default function Schedule() {
     };
 
     const openCreateEvent = (date = selectedDate) => {
-        if (!isAdmin) return;
+        if (!canManageSchedule) return;
         setEditingEvent(null);
         setEventForm(emptyEventForm(date));
         setEventStep(0);
@@ -254,7 +254,7 @@ export default function Schedule() {
     };
 
     const openEditEvent = (event) => {
-        if (!isAdmin || getEventStatus(event) === 'concluded') return;
+        if (!canManageSchedule || getEventStatus(event) === 'concluded') return;
 
         const eventStartTimes = event.schedules.map((schedule) => schedule.start_time?.slice(0, 5)).filter(Boolean).sort();
         const eventEndTimes = event.schedules.map((schedule) => schedule.end_time?.slice(0, 5)).filter(Boolean).sort();
@@ -526,7 +526,7 @@ export default function Schedule() {
     const openEditAssignment = (schedule, event) => {
         const isOwner = schedule.personnel_id === profile?.id;
         const isLocked = getEventStatus(event) === 'concluded' || hasCheckedOut(schedule);
-        if ((!isAdmin && !isOwner) || isLocked) return;
+        if ((!canManageSchedule && !isOwner) || isLocked) return;
 
         setEditingSchedule(schedule);
         setAssignmentEventId(event.id);
@@ -544,7 +544,7 @@ export default function Schedule() {
     };
 
     const openAddAssignment = (event) => {
-        if (!isAdmin || getEventStatus(event) === 'concluded') return;
+        if (!canManageSchedule || getEventStatus(event) === 'concluded') return;
         setEditingSchedule(null);
         setAssignmentEventId(event.id);
         setAssignmentForm(emptyAssignmentForm());
@@ -660,7 +660,7 @@ export default function Schedule() {
     };
 
     const handleAddManagedTeam = async () => {
-        if (!isAdmin || !teamManagerEvent || getEventStatus(teamManagerEvent) === 'concluded') return;
+        if (!canManageSchedule || !teamManagerEvent || getEventStatus(teamManagerEvent) === 'concluded') return;
         const anchor = teamManagerEvent.schedules.find((schedule) => schedule.is_event_anchor)
             || teamManagerEvent.schedules[0];
         if (!anchor) return;
@@ -683,7 +683,7 @@ export default function Schedule() {
     };
 
     const handleRenameTeam = async (team, name) => {
-        if (!isAdmin || !teamManagerEvent || getEventStatus(teamManagerEvent) === 'concluded') return;
+        if (!canManageSchedule || !teamManagerEvent || getEventStatus(teamManagerEvent) === 'concluded') return;
         const nextName = name.trim() || null;
         if (nextName === (team.name?.trim() || null)) return;
 
@@ -700,7 +700,7 @@ export default function Schedule() {
     };
 
     const handleDeleteManagedTeam = async (team) => {
-        if (!isAdmin || !teamManagerEvent || getEventStatus(teamManagerEvent) === 'concluded') return;
+        if (!canManageSchedule || !teamManagerEvent || getEventStatus(teamManagerEvent) === 'concluded') return;
         if (!window.confirm(`Delete ${getTeamDisplayName(team, teamManagerEvent)}? Its volunteers will become unassigned.`)) return;
 
         setSaving(true);
@@ -716,7 +716,7 @@ export default function Schedule() {
     };
 
     const handleMoveTeamMember = async (schedule, teamId) => {
-        if (!isAdmin || !teamManagerEvent || hasCheckedOut(schedule) || getEventStatus(teamManagerEvent) === 'concluded') return;
+        if (!canManageSchedule || !teamManagerEvent || hasCheckedOut(schedule) || getEventStatus(teamManagerEvent) === 'concluded') return;
         const targetTeam = teamManagerEvent.teams.find((team) => team.id === teamId) || null;
         const previousSchedules = schedules;
         const optimisticUpdates = {
@@ -738,7 +738,7 @@ export default function Schedule() {
     };
 
     const handleRoleSave = async (schedule) => {
-        if (!isAdmin || !teamManagerEvent || getEventStatus(teamManagerEvent) === 'concluded') return;
+        if (!canManageSchedule || !teamManagerEvent || getEventStatus(teamManagerEvent) === 'concluded') return;
         const nextRole = teamRoleDrafts[schedule.id]?.trim() || null;
         if (nextRole === (schedule.assignment_role?.trim() || null) || hasCheckedOut(schedule)) return;
 
@@ -757,7 +757,7 @@ export default function Schedule() {
     const renderTeamManagerMember = (schedule, event) => {
         const locked = hasCheckedOut(schedule);
         const roleValue = teamRoleDrafts[schedule.id] ?? schedule.assignment_role ?? '';
-        const canManage = isAdmin && getEventStatus(event) !== 'concluded';
+        const canManage = canManageSchedule && getEventStatus(event) !== 'concluded';
         const isUpdatingTeam = updatingTeamMemberId === schedule.id;
 
         return (
@@ -800,7 +800,7 @@ export default function Schedule() {
     const renderAssignment = (schedule, event, isOwn = false) => {
         const checkedOut = hasCheckedOut(schedule);
         const locked = getEventStatus(event) === 'concluded' || checkedOut;
-        const canEdit = !locked && (isAdmin || schedule.personnel_id === profile?.id);
+        const canEdit = !locked && (canManageSchedule || schedule.personnel_id === profile?.id);
         const assignedTeam = event.teams.find((team) => team.id === schedule.team_id);
 
         return (
@@ -819,7 +819,7 @@ export default function Schedule() {
                         <span><Users size={14} /> {assignedTeam ? getTeamDisplayName(assignedTeam, event) : schedule.team_station || 'Team not assigned'}</span>
                         {schedule.assignment_role && <span><UserRoundCog size={14} /> {schedule.assignment_role}</span>}
                     </div>
-                    {schedule.notes && (isAdmin || schedule.personnel_id === profile?.id) && <p className="schedule-assignment-note">{schedule.notes}</p>}
+                    {schedule.notes && (canManageSchedule || schedule.personnel_id === profile?.id) && <p className="schedule-assignment-note">{schedule.notes}</p>}
                 </div>
                 {canEdit ? (
                     <button type="button" className="btn btn-sm btn-secondary schedule-assignment-edit" onClick={() => openEditAssignment(schedule, event)} aria-label={`Edit ${schedule.personnel?.name || 'assignment'}`}>
@@ -917,7 +917,7 @@ export default function Schedule() {
                         <section className="schedule-info-section">
                             <div className="schedule-team-section-heading">
                                 <h3><Users size={17} /> Teams</h3>
-                                <button type="button" className="btn btn-sm btn-secondary" onClick={() => openTeamManager(event)}><Users size={15} /> {isAdmin && status !== 'concluded' ? 'Manage' : 'View'}</button>
+                                <button type="button" className="btn btn-sm btn-secondary" onClick={() => openTeamManager(event)}><Users size={15} /> {canManageSchedule && status !== 'concluded' ? 'Manage' : 'View'}</button>
                             </div>
                             <div className="schedule-unassigned-summary">
                                 <div><span>Unassigned</span><strong>{unassignedAssignments.length}</strong></div>
@@ -940,7 +940,7 @@ export default function Schedule() {
                     <section className="schedule-roster-panel">
                         <div className="schedule-roster-header">
                             <div><span>Duty roster</span><strong>{roster.registeredCount} volunteer{roster.registeredCount === 1 ? '' : 's'}</strong></div>
-                            {isAdmin && status !== 'concluded' && <button type="button" className="btn btn-sm btn-secondary" onClick={() => openAddAssignment(event)}><UserPlus size={15} /> Add</button>}
+                            {canManageSchedule && status !== 'concluded' && <button type="button" className="btn btn-sm btn-secondary" onClick={() => openAddAssignment(event)}><UserPlus size={15} /> Add</button>}
                         </div>
 
                         <div className="schedule-roster-scroll">
@@ -966,7 +966,7 @@ export default function Schedule() {
 
                         <div className="schedule-detail-actions">
                             {isAdmin && <button type="button" className="btn btn-danger" onClick={() => handleDeleteEvent(event)} disabled={saving}><Trash2 size={17} /> Delete event</button>}
-                            {isAdmin && status !== 'concluded' && <button type="button" className="btn btn-secondary" onClick={() => openEditEvent(event)}><Pencil size={17} /> Edit event</button>}
+                            {canManageSchedule && status !== 'concluded' && <button type="button" className="btn btn-secondary" onClick={() => openEditEvent(event)}><Pencil size={17} /> Edit event</button>}
                             {!isRegistered && status !== 'concluded' && <button type="button" className="btn btn-primary" onClick={() => openRegister(event)}><UserPlus size={17} /> Register</button>}
                         </div>
                     </section>
@@ -992,11 +992,11 @@ export default function Schedule() {
                 <div>
                     <span className="schedule-eyebrow"><CalendarIcon size={15} /> Duty calendar</span>
                     <h1 className="page-title">Schedule</h1>
-                    <p className="page-subtitle">{isAdmin ? 'Plan deployments and keep every duty detail in one place.' : 'Find upcoming duties, view full details, and manage your own time.'}</p>
+                    <p className="page-subtitle">{canManageSchedule ? 'Plan deployments and keep every duty detail in one place.' : 'Find upcoming duties, view full details, and manage your own time.'}</p>
                 </div>
                 <div className="schedule-header-actions">
                     {profile && <div className="schedule-my-duty-count"><strong>{myUpcomingCount}</strong><span>Your upcoming duties</span></div>}
-                    {isAdmin && <button type="button" className="btn btn-primary" onClick={() => openCreateEvent()}><Plus size={18} /> Create event</button>}
+                    {canManageSchedule && <button type="button" className="btn btn-primary" onClick={() => openCreateEvent()}><Plus size={18} /> Create event</button>}
                 </div>
             </header>
 
@@ -1053,7 +1053,7 @@ export default function Schedule() {
             <section className="schedule-mobile-agenda">
                 <div className="schedule-mobile-agenda-header">
                     <div><span>Selected day</span><strong>{format(selectedDate, 'EEEE, MMMM d')}</strong></div>
-                    {isAdmin && <button type="button" className="btn btn-sm btn-primary" onClick={() => openCreateEvent(selectedDate)}><Plus size={16} /> Add</button>}
+                    {canManageSchedule && <button type="button" className="btn btn-sm btn-primary" onClick={() => openCreateEvent(selectedDate)}><Plus size={16} /> Add</button>}
                 </div>
                 {selectedDayEvents.length ? selectedDayEvents.map((event) => (
                     <button type="button" key={event.id} className="schedule-agenda-event" onClick={() => setViewingEventId(event.id)}>
@@ -1219,7 +1219,7 @@ export default function Schedule() {
                 </form>
             </Modal>
 
-            <Modal isOpen={Boolean(teamManagerEvent)} onClose={closeTeamManager} title={`${isAdmin && teamManagerEvent && getEventStatus(teamManagerEvent) !== 'concluded' ? 'Manage teams' : 'Teams'}${teamManagerEvent?.title ? ` — ${teamManagerEvent.title}` : ''}`} size="xl" className="schedule-team-manager-modal">
+            <Modal isOpen={Boolean(teamManagerEvent)} onClose={closeTeamManager} title={`${canManageSchedule && teamManagerEvent && getEventStatus(teamManagerEvent) !== 'concluded' ? 'Manage teams' : 'Teams'}${teamManagerEvent?.title ? ` — ${teamManagerEvent.title}` : ''}`} size="xl" className="schedule-team-manager-modal">
                 {teamManagerEvent && (
                     <div className="schedule-team-manager">
                         <header className="schedule-team-manager-header">
@@ -1227,10 +1227,10 @@ export default function Schedule() {
                                 <span>{format(toLocalDate(teamManagerEvent.date), 'EEEE, MMMM d, yyyy')}</span>
                                 <strong>{teamManagerEvent.teams.length} team{teamManagerEvent.teams.length === 1 ? '' : 's'} · {teamManagerMembers.length} registered</strong>
                             </div>
-                            {isAdmin && getEventStatus(teamManagerEvent) !== 'concluded' && <button type="button" className="btn btn-primary" onClick={handleAddManagedTeam} disabled={saving}><Plus size={17} /> Add team</button>}
+                            {canManageSchedule && getEventStatus(teamManagerEvent) !== 'concluded' && <button type="button" className="btn btn-primary" onClick={handleAddManagedTeam} disabled={saving}><Plus size={17} /> Add team</button>}
                         </header>
 
-                        <div className="schedule-team-manager-tip"><Users size={17} /><span>{isAdmin && getEventStatus(teamManagerEvent) !== 'concluded' ? 'Use the Team menu to move volunteers and edit their role beside it.' : 'Full team assignments, duty times, and roles are shown below.'}</span></div>
+                        <div className="schedule-team-manager-tip"><Users size={17} /><span>{canManageSchedule && getEventStatus(teamManagerEvent) !== 'concluded' ? 'Use the Team menu to move volunteers and edit their role beside it.' : 'Full team assignments, duty times, and roles are shown below.'}</span></div>
 
                         <section className="schedule-unassigned-panel">
                             <header>
@@ -1260,13 +1260,13 @@ export default function Schedule() {
                                         <header>
                                             <div>
                                                 <span>Team</span>
-                                                {isAdmin && getEventStatus(teamManagerEvent) !== 'concluded'
+                                                {canManageSchedule && getEventStatus(teamManagerEvent) !== 'concluded'
                                                     ? <input className="schedule-team-name-input" defaultValue={getTeamDisplayName(team, teamManagerEvent)} onBlur={(blurEvent) => handleRenameTeam(team, blurEvent.target.value)} aria-label={`Name for ${getTeamDisplayName(team, teamManagerEvent)}`} disabled={saving} />
                                                     : <strong>{getTeamDisplayName(team, teamManagerEvent)}</strong>}
                                             </div>
                                             <div className="schedule-team-column-actions">
                                                 <span>{members.length}</span>
-                                                {isAdmin && getEventStatus(teamManagerEvent) !== 'concluded' && <button type="button" onClick={() => handleDeleteManagedTeam(team)} disabled={saving} aria-label={`Delete ${getTeamDisplayName(team, teamManagerEvent)}`}><Trash2 size={15} /></button>}
+                                                {canManageSchedule && getEventStatus(teamManagerEvent) !== 'concluded' && <button type="button" onClick={() => handleDeleteManagedTeam(team)} disabled={saving} aria-label={`Delete ${getTeamDisplayName(team, teamManagerEvent)}`}><Trash2 size={15} /></button>}
                                             </div>
                                         </header>
                                         <div className="schedule-team-column-members">
@@ -1288,7 +1288,7 @@ export default function Schedule() {
                 <form onSubmit={handleAssignmentSubmit}>
                     <div className="schedule-form-context"><Clock size={18} /><div><strong>{assignmentEvent?.title}</strong><span>{assignmentEvent && format(toLocalDate(assignmentEvent.date), 'EEEE, MMMM d, yyyy')}</span></div></div>
                     {editingSchedule?.personnel_id === profile?.id && <div className="schedule-permission-note"><LockKeyhole size={17} /><span>You are editing your own duty. Only your time and personal notes can be changed.</span></div>}
-                    {(!editingSchedule || editingSchedule.personnel_id !== profile?.id) && isAdmin && (
+                    {(!editingSchedule || editingSchedule.personnel_id !== profile?.id) && canManageSchedule && (
                         <div className="schedule-form-grid two-columns schedule-assignment-admin-fields">
                             <div className="form-group"><label className="form-label">Personnel *</label><select className="form-select" value={assignmentForm.personnel_id} onChange={(event) => setAssignmentForm({ ...assignmentForm, personnel_id: event.target.value })} required><option value="">Select personnel</option>{personnel.map((person) => <option key={person.id} value={person.id}>{person.name} ({person.role})</option>)}</select></div>
                             <div className="form-group"><label className="form-label">Team</label><select className="form-select" value={assignmentForm.team_id} onChange={(event) => setAssignmentForm({ ...assignmentForm, team_id: event.target.value })}><option value="">Unassigned</option>{assignmentEvent?.teams.map((team) => <option key={team.id} value={team.id}>{getTeamDisplayName(team, assignmentEvent)}</option>)}</select></div>

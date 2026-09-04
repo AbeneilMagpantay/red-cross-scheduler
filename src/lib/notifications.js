@@ -92,7 +92,7 @@ export const showTestNotification = async (userId) => {
 
     const registration = await navigator.serviceWorker.ready;
     await registration.showNotification('Notifications are ready', {
-        body: 'You will be alerted about new deployment duties and ARC announcements.',
+        body: 'You will be alerted about new deployment duties, ARC announcements, and relevant account updates.',
         icon: '/app-icon.svg',
         badge: '/app-icon.svg',
         tag: 'notification-test',

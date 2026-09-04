@@ -3,11 +3,13 @@ import {
     BellRing,
     CalendarDays,
     ChartNoAxesColumnIncreasing,
+    Compass,
     History,
     LogIn,
     Megaphone,
     PanelsTopLeft,
     Rocket,
+    ShieldCheck,
     Smartphone,
     Sparkles,
     UserRoundCheck,
@@ -30,10 +32,20 @@ const fixes = [
         icon: History,
         title: 'Reliable personnel history',
         description: 'Removing access now archives personnel so their names remain visible in past duty records.'
+    },
+    {
+        icon: ShieldCheck,
+        title: 'Reliable account access',
+        description: 'Temporary connection problems are retried and shown clearly instead of incorrectly displaying Access Denied.'
     }
 ];
 
 const features = [
+    {
+        icon: Compass,
+        title: 'New ARC home and guided help',
+        description: 'Jump into Alerts, NEXUS, CORE, or Tracker from a new landing page, then use page infoboards and the spotlight walkthrough whenever you need guidance.'
+    },
     {
         icon: UserRoundCheck,
         title: 'Your duty summary',
@@ -62,7 +74,12 @@ const features = [
     {
         icon: PanelsTopLeft,
         title: 'One ARC workspace',
-        description: 'Officers and administrators can now open NEXUS resources and CORE deliverables alongside schedules, attendance, and records.'
+        description: 'Every active member can view NEXUS resources and CORE deliverables; Officers and Administrators can keep them updated.'
+    },
+    {
+        icon: UserRoundCheck,
+        title: 'Admin-approved accounts',
+        description: 'New members can request their own account, while Administrators retain control over who receives access.'
     },
     {
         icon: Megaphone,

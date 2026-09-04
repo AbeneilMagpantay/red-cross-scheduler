@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../lib/supabase';
-import { AlertTriangle, BellRing, CalendarCheck2, Check, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlertTriangle, BellRing, CalendarCheck2, Check, ShieldCheck, Sparkles, UserPlus } from 'lucide-react';
 import logoNew from '../assets/logo_new.png';
 
 function GoogleIcon() {
@@ -24,7 +24,10 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
-    const { signIn, signInWithGoogle, configError } = useAuth();
+    const [showSignUp, setShowSignUp] = useState(false);
+    const [fullName, setFullName] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const { signIn, signInWithGoogle, signUp, configError } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -44,6 +47,49 @@ export default function Login() {
             }
         } catch {
             setError('An unexpected error occurred');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSignUp = async (event) => {
+        event.preventDefault();
+        setError('');
+        setSuccess('');
+
+        const normalizedEmail = email.trim().toLowerCase();
+        const normalizedName = fullName.trim();
+        if (!normalizedName) {
+            setError('Please enter your full name.');
+            return;
+        }
+        if (password.length < 12) {
+            setError('Use a password with at least 12 characters.');
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError('The passwords do not match.');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const { data, error: signUpError } = await signUp(normalizedEmail, password, {
+                name: normalizedName,
+                full_name: normalizedName
+            });
+            if (signUpError) {
+                setError(signUpError.message);
+            } else if (data?.session) {
+                navigate('/');
+            } else {
+                setShowSignUp(false);
+                setPassword('');
+                setConfirmPassword('');
+                setSuccess('Request submitted. Confirm your email, then wait for an administrator to approve your account.');
+            }
+        } catch {
+            setError('Your account request could not be submitted. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -215,8 +261,46 @@ export default function Login() {
                                 Back to Login
                             </button>
                         </form>
+                    ) : showSignUp ? (
+                        <form onSubmit={handleSignUp}>
+                            <div className="login-form-heading">
+                                <span className="login-form-icon"><UserPlus size={19} /></span>
+                                <div>
+                                    <h3>Request an ARC account</h3>
+                                    <p>An administrator will review your request before access is granted.</p>
+                                </div>
+                            </div>
+
+                            {error && <div className="form-error mb-lg login-message">{error}</div>}
+
+                            <div className="form-group">
+                                <label className="form-label">Full name</label>
+                                <input type="text" className="form-input" value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" required />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Email address</label>
+                                <input type="email" className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} autoCapitalize="none" autoComplete="email" required />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Password</label>
+                                <input type="password" className="form-input" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" minLength={12} required />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Confirm password</label>
+                                <input type="password" className="form-input" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={12} required />
+                            </div>
+                            <button type="submit" className="btn btn-primary btn-lg w-full" disabled={loading || configError}>
+                                {loading ? <><div className="loading" /> Submitting…</> : 'Submit account request'}
+                            </button>
+                            <button type="button" className="btn btn-ghost w-full mt-md" onClick={() => { setShowSignUp(false); setError(''); }}>
+                                Back to sign in
+                            </button>
+                        </form>
                     ) : (
                         <div>
+                            {success && (
+                                <div className="login-message success mb-lg"><Check size={18} /> {success}</div>
+                            )}
                             {error && (
                                 <div className="form-error mb-lg" style={{
                                     background: 'rgba(239, 68, 68, 0.1)',
@@ -248,7 +332,7 @@ export default function Login() {
                             </button>
 
                             <p className="login-access-note">
-                                Use the same email as your registered personnel account. Your duty history stays connected.
+                                Existing members should use their registered email. New accounts are sent to an administrator for approval.
                             </p>
 
                             <div className="login-divider"><span>or use your password</span></div>
@@ -308,12 +392,25 @@ export default function Login() {
                                 >
                                     Forgot Password?
                                 </button>
+
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary w-full mt-sm"
+                                    onClick={() => {
+                                        setShowSignUp(true);
+                                        setShowForgotPassword(false);
+                                        setError('');
+                                        setSuccess('');
+                                    }}
+                                >
+                                    <UserPlus size={17} /> Request an account
+                                </button>
                             </form>
                         </div>
                     )}
 
                     <p className="text-center text-muted text-sm mt-lg">
-                        Contact your administrator for access
+                        Access is granted after administrator approval
                     </p>
                 </div>
             </div>

@@ -1,6 +1,12 @@
 export const ARC_RESOURCE_BUCKET = 'arc-resource-qr';
 
-export const roleCanAccessArc = (role) => role === 'admin' || role === 'officer';
+export const roleCanViewArc = (role) => ['admin', 'officer', 'volunteer'].includes(role);
+
+export const roleCanEditArc = (role) => role === 'admin' || role === 'officer';
+
+// Kept as a compatibility alias for older imports. "Access" originally meant
+// edit access when NEXUS and CORE were officer-only.
+export const roleCanAccessArc = roleCanEditArc;
 
 export const CORE_STATUSES = ['Not Started', 'Blocked', 'In Progress', 'Completed', 'NONE'];
 
