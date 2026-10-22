@@ -5,7 +5,6 @@ import {
     getAlertCategoryClass,
     getReadAlertIds,
     markAlertsRead,
-    normalizeAlertUrl,
     normalizeExternalUrl,
     sortArcAlerts
 } from './alerts.js';
@@ -44,10 +43,10 @@ test('maps alert categories to stable style names', () => {
     assert.equal(getAlertCategoryClass('Something else'), 'general');
 });
 
-test('accepts only web URLs for announcement links', () => {
-    assert.equal(normalizeAlertUrl('https://example.com/form'), 'https://example.com/form');
+test('accepts only web URLs for external links', () => {
+    assert.equal(normalizeExternalUrl('https://example.com/form'), 'https://example.com/form');
     assert.equal(normalizeExternalUrl('http://example.com/resource'), 'http://example.com/resource');
-    assert.equal(normalizeAlertUrl('javascript:alert(1)'), '');
+    assert.equal(normalizeExternalUrl('javascript:alert(1)'), '');
     assert.equal(normalizeExternalUrl('data:text/html,<script>alert(1)</script>'), '');
-    assert.equal(normalizeAlertUrl('not a link'), '');
+    assert.equal(normalizeExternalUrl('not a link'), '');
 });

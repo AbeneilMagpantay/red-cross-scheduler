@@ -2,18 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ArrowLeft,
     ArrowRight,
-    Bold,
     CheckCircle2,
     ChevronDown,
     Clipboard,
     Download,
     ExternalLink,
     FileImage,
-    Italic,
     Link as LinkIcon,
-    List,
     LayoutGrid,
-    ListOrdered,
     Maximize2,
     Plus,
     QrCode,
@@ -21,11 +17,11 @@ import {
     Save,
     Search,
     Trash2,
-    Underline,
     Upload,
     X
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import FormatToolbar from '../components/FormatToolbar';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/supabase';
@@ -299,10 +295,6 @@ export default function Nexus() {
         if (saved) setSelectedId(null);
     };
 
-    const runFormat = (command) => {
-        document.execCommand(command, false);
-    };
-
     const toggleViewMode = () => {
         const nextMode = viewMode === 'grid' ? 'pill' : 'grid';
         setViewMode(nextMode);
@@ -462,13 +454,12 @@ export default function Nexus() {
                             <div className="form-group"><label className="form-label">Resource URL</label><input type="url" className="form-input" value={detailDraft.url} onChange={(event) => setDetailDraft({ ...detailDraft, url: event.target.value })} readOnly={!canEditArc} /></div>
                             <div className="form-group">
                                 <label className="form-label">Description</label>
-                                {canEditArc && <div className="arc-format-toolbar" aria-label="Description formatting">
-                                    <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('bold'); }} aria-label="Bold"><Bold size={16} /></button>
-                                    <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('italic'); }} aria-label="Italic"><Italic size={16} /></button>
-                                    <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('underline'); }} aria-label="Underline"><Underline size={16} /></button>
-                                    <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('insertOrderedList'); }} aria-label="Numbered list"><ListOrdered size={16} /></button>
-                                    <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('insertUnorderedList'); }} aria-label="Bulleted list"><List size={16} /></button>
-                                </div>}
+                                {canEditArc && (
+                                    <FormatToolbar
+                                        tools={['bold', 'italic', 'underline', 'orderedList', 'bulletList']}
+                                        label="Description formatting"
+                                    />
+                                )}
                                 <div
                                     key={selectedResource.id}
                                     ref={descriptionEditorRef}

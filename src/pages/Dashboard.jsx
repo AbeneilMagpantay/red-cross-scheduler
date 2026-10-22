@@ -17,7 +17,7 @@ export default function Dashboard() {
         totalPersonnel: 0,
         todayDuties: 0,
         pendingSwaps: 0,
-        attendanceRate: 0
+        attendanceRate: null
     });
     const [todaySchedule, setTodaySchedule] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -29,21 +29,21 @@ export default function Dashboard() {
     const loadDashboardData = async () => {
         try {
             const today = format(new Date(), 'yyyy-MM-dd');
+            const [{ data: personnel }, { data: schedules }, { data: swaps }] = await Promise.all([
+                db.getPersonnel(),
+                db.getSchedules(today, today),
+                db.getSwapRequests('pending')
+            ]);
 
-            // Get personnel count
-            const { data: personnel } = await db.getPersonnel();
-
-            // Get today's schedules
-            const { data: schedules } = await db.getSchedules(today, today);
-
-            // Get pending swap requests
-            const { data: swaps } = await db.getSwapRequests('pending');
+            const statuses = (schedules || []).flatMap((schedule) => schedule.attendance || []).map((record) => record.status);
+            const attended = statuses.filter((status) => status === 'present' || status === 'late').length;
+            const decided = attended + statuses.filter((status) => status === 'absent').length;
 
             setStats({
                 totalPersonnel: personnel?.length || 0,
                 todayDuties: schedules?.length || 0,
                 pendingSwaps: swaps?.length || 0,
-                attendanceRate: 95 // Placeholder - would calculate from actual attendance
+                attendanceRate: decided ? Math.round((attended / decided) * 100) : null
             });
 
             setTodaySchedule(schedules || []);
@@ -82,7 +82,6 @@ export default function Dashboard() {
                 <div className="workspace-status"><span /> Live workspace</div>
             </div>
 
-            {/* Stats Grid */}
             <div className="stats-grid">
                 <div className="stat-card">
                     <div className="stat-icon red">
@@ -119,13 +118,12 @@ export default function Dashboard() {
                         <ClipboardCheck size={24} />
                     </div>
                     <div className="stat-content">
-                        <h3>{stats.attendanceRate}%</h3>
-                        <p>Attendance Rate</p>
+                        <h3>{stats.attendanceRate === null ? '—' : `${stats.attendanceRate}%`}</h3>
+                        <p>Attendance Today</p>
                     </div>
                 </div>
             </div>
 
-            {/* Today's Schedule */}
             <div className="card dashboard-roster">
                 <div className="card-header">
                     <div>
@@ -173,7 +171,6 @@ export default function Dashboard() {
                 )}
             </div>
 
-            {/* Alerts Section */}
             {stats.pendingSwaps > 0 && (
                 <div className="card mt-lg" style={{ borderColor: 'rgba(245, 158, 11, 0.3)' }}>
                     <div className="flex items-center gap-md">

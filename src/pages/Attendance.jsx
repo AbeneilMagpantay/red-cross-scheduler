@@ -143,7 +143,6 @@ export default function Attendance() {
                 </div>
             )}
 
-            {/* Stats */}
             <div className="stats-grid mb-xl">
                 <div className="stat-card">
                     <div className="stat-icon blue">
@@ -183,7 +182,6 @@ export default function Attendance() {
                 </div>
             </div>
 
-            {/* Attendance Table */}
             <div className="card">
                 <div className="card-header">
                     <h3 className="card-title">

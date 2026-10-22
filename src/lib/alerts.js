@@ -31,7 +31,7 @@ export const markAlertsRead = (alerts = [], userId, storage = globalThis.localSt
     try {
         storage?.setItem(readKey(userId), JSON.stringify(ids));
     } catch {
-        // Reading Alerts should still work when browser storage is unavailable.
+        // Storage may be blocked; read state just won't persist.
     }
 
     return ids;
@@ -66,5 +66,3 @@ export const normalizeExternalUrl = (value = '') => {
         return '';
     }
 };
-
-export const normalizeAlertUrl = normalizeExternalUrl;

@@ -22,8 +22,7 @@ export const groupAttendanceByEvent = (attendanceRecords = []) => {
         const date = schedule.duty_date;
         const scheduledTime = getScheduledTime(schedule);
 
-        // A titled event is identified by its date and normalized title. Untitled
-        // legacy duties stay separate because there is no reliable shared identity.
+        // Group titled duties by date + title; untitled ones have no shared identity.
         const key = rawTitle
             ? `${date}::${normalizeTitle(rawTitle)}`
             : `${date}::untitled::${record.schedule_id}`;
@@ -64,23 +63,22 @@ export const groupAttendanceByEvent = (attendanceRecords = []) => {
         .sort((a, b) => b.date.localeCompare(a.date) || a.title.localeCompare(b.title));
 };
 
-export const summarizePersonnelAttendance = (attendanceRecords = [], personnelId) => {
-    if (!personnelId) {
-        return {
-            attended: 0,
-            present: 0,
-            late: 0,
-            absent: 0,
-            excused: 0,
-            pending: 0,
-            decided: 0,
-            attendanceRate: 0,
-            loggedHours: 0
-        };
-    }
+const emptySummary = () => ({
+    attended: 0,
+    present: 0,
+    late: 0,
+    absent: 0,
+    excused: 0,
+    pending: 0,
+    decided: 0,
+    attendanceRate: 0,
+    loggedHours: 0
+});
 
-    // A schedule represents one duty. If duplicate attendance rows exist, only
-    // the latest record for that duty should contribute to the personal summary.
+export const summarizePersonnelAttendance = (attendanceRecords = [], personnelId) => {
+    if (!personnelId) return emptySummary();
+
+    // Count only the latest attendance row per duty.
     const duties = new Map();
     attendanceRecords
         .filter((record) => record.personnel_id === personnelId)
@@ -93,18 +91,7 @@ export const summarizePersonnelAttendance = (attendanceRecords = [], personnelId
             if (!existing || recordTime >= existingTime) duties.set(key, record);
         });
 
-    const summary = {
-        attended: 0,
-        present: 0,
-        late: 0,
-        absent: 0,
-        excused: 0,
-        pending: 0,
-        decided: 0,
-        attendanceRate: 0,
-        loggedHours: 0
-    };
-
+    const summary = emptySummary();
     let loggedMinutes = 0;
 
     duties.forEach((record) => {

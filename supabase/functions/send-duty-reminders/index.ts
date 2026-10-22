@@ -146,8 +146,8 @@ Deno.serve(async (request) => {
     return jsonResponse({ checked: data?.length || 0, due: 0, delivered: 0, failed: 0, account_requests: 0 });
   }
 
-  // Restored and Google-linked accounts can legitimately have an auth ID that
-  // differs from the preserved personnel ID. Resolve by ID first, then email.
+  // Restored or Google-linked accounts may have an auth ID that differs from
+  // the personnel ID, so match by ID first, then email.
   const authUsers: Array<{ id: string; email?: string | null }> = [];
   for (let page = 1; page <= 20; page += 1) {
     const { data: authPage, error: authUsersError } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
@@ -309,8 +309,7 @@ Deno.serve(async (request) => {
       }
     }
 
-    // Mark the batch after one delivery attempt. Administrators without a push
-    // subscription still retain the persistent Personnel badge and queue.
+    // Mark after one attempt; admins without push still see the Personnel badge.
     await adminClient
       .from('account_requests')
       .update({ notified_at: new Date().toISOString(), updated_at: new Date().toISOString() })

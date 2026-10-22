@@ -37,7 +37,6 @@ export default function Swaps() {
             setSwapRequests(swapsRes.data || []);
             setPersonnel(personnelRes.data?.filter(p => p.is_active) || []);
 
-            // Load user's schedules if not admin
             if (profile?.id) {
                 const { data: schedules } = await db.getSchedulesByPersonnel(profile.id);
                 setMySchedules(schedules || []);
@@ -140,7 +139,6 @@ export default function Swaps() {
                 )}
             </div>
 
-            {/* Alert */}
             {alert.message && (
                 <div className="card mb-lg" style={{
                     padding: 'var(--space-md)',
@@ -152,7 +150,6 @@ export default function Swaps() {
                 </div>
             )}
 
-            {/* Filters */}
             <div className="card mb-lg">
                 <div className="flex gap-md status-filter-grid">
                     {['all', 'pending', 'approved', 'rejected'].map(status => (
@@ -168,7 +165,6 @@ export default function Swaps() {
                 </div>
             </div>
 
-            {/* Swap Requests */}
             <div className="card">
                 {filteredRequests.length === 0 ? (
                     <div className="empty-state">
@@ -267,7 +263,6 @@ export default function Swaps() {
                 )}
             </div>
 
-            {/* Request Swap Modal */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}

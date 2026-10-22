@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Bold,
     CheckCircle2,
     ClipboardCheck,
     Download,
     Info,
-    Italic,
-    List,
     ListChecks,
-    ListOrdered,
     Minus,
-    Plus,
-    Underline
+    Plus
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import FormatToolbar from '../components/FormatToolbar';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/supabase';
 import {
@@ -194,8 +190,6 @@ export default function Core() {
         }
     };
 
-    const runFormat = (command) => document.execCommand(command, false);
-
     if (loading) {
         return <div className="arc-page-loading"><div className="loading" /><span>Opening CORE…</span></div>;
     }
@@ -225,14 +219,15 @@ export default function Core() {
                     <div className="core-meta-icon"><ClipboardCheck size={23} /></div>
                 </div>
 
-                {canEditArc && <div className="arc-format-toolbar core-format-toolbar" aria-label="CORE text formatting">
-                    <span>Formatting</span>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('bold'); }} aria-label="Bold"><Bold size={16} /></button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('italic'); }} aria-label="Italic"><Italic size={16} /></button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('underline'); }} aria-label="Underline"><Underline size={16} /></button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('insertOrderedList'); }} aria-label="Numbered list"><ListOrdered size={16} /></button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('insertUnorderedList'); }} aria-label="Bulleted list"><List size={16} /></button>
-                </div>}
+                {canEditArc && (
+                    <FormatToolbar
+                        tools={['bold', 'italic', 'underline', 'orderedList', 'bulletList']}
+                        label="CORE text formatting"
+                        className="core-format-toolbar"
+                    >
+                        <span>Formatting</span>
+                    </FormatToolbar>
+                )}
 
                 <div className="core-table-wrap">
                     <table className="core-table">

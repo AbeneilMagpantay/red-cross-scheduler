@@ -1,12 +1,6 @@
 export const ARC_RESOURCE_BUCKET = 'arc-resource-qr';
 
-export const roleCanViewArc = (role) => ['admin', 'officer', 'volunteer'].includes(role);
-
 export const roleCanEditArc = (role) => role === 'admin' || role === 'officer';
-
-// Kept as a compatibility alias for older imports. "Access" originally meant
-// edit access when NEXUS and CORE were officer-only.
-export const roleCanAccessArc = roleCanEditArc;
 
 export const CORE_STATUSES = ['Not Started', 'Blocked', 'In Progress', 'Completed', 'NONE'];
 
@@ -45,11 +39,7 @@ export const getCoreLineKeys = (row, count, prefix) => (
     Array.from({ length: Math.max(1, count) }, (_, index) => coreLineKey(prefix, row, index))
 );
 
-export const countDeliverables = (html = '') => {
-    const listItems = html.match(/<li\b[^>]*>/gi)?.length || 0;
-    if (listItems) return listItems;
-    return html.replace(/<[^>]*>/g, '').trim() ? 1 : 1;
-};
+export const countDeliverables = (html = '') => html.match(/<li\b[^>]*>/gi)?.length || 1;
 
 export const createDefaultCoreFields = () => {
     const fields = {

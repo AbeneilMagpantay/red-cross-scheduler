@@ -21,8 +21,7 @@ export default function DeploymentNotifications() {
                 table: 'schedules',
                 filter: 'is_deployment_event=eq.true'
             }, ({ new: schedule }) => {
-                // Assignment rows share the event's deployment flag, but only
-                // the event anchor represents a newly created deployment.
+                // Only the anchor row marks a new deployment; assignments share its flag.
                 if (!schedule.is_deployment_event || !schedule.is_event_anchor) return;
 
                 setNotification({ kind: 'deployment', payload: schedule });

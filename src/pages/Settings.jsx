@@ -260,7 +260,7 @@ export default function Settings() {
                 <div className="card-header">
                     <div>
                         <h2 className="card-title icon-title"><Lock size={20} /> Change Password</h2>
-                        <p className="card-subtitle">Use at least six characters</p>
+                        <p className="card-subtitle">Use at least 12 characters</p>
                     </div>
                 </div>
 

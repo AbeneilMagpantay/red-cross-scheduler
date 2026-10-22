@@ -17,13 +17,10 @@ import {
     UserX
 } from 'lucide-react';
 
-const getPersonnelData = (formData) => {
-    const personnelData = { ...formData };
-    delete personnelData.password;
-    delete personnelData.createAccount;
-    if (personnelData.email) personnelData.email = personnelData.email.trim().toLowerCase();
-    return personnelData;
-};
+const getPersonnelData = (formData) => ({
+    ...formData,
+    email: formData.email.trim().toLowerCase()
+});
 
 export default function Personnel() {
     const [personnel, setPersonnel] = useState([]);
@@ -118,8 +115,8 @@ export default function Personnel() {
 
         try {
             if (editingPerson) {
-                // Update existing personnel
-                await db.updatePersonnel(editingPerson.id, getPersonnelData(formData));
+                const { error: updateError } = await db.updatePersonnel(editingPerson.id, getPersonnelData(formData));
+                if (updateError) throw updateError;
                 setSuccess('Personnel updated successfully!');
             } else {
                 const { error: createError } = await db.createPersonnel(getPersonnelData(formData));
@@ -232,7 +229,6 @@ export default function Personnel() {
                 </button>
             </div>
 
-            {/* Filters */}
             <div className="card mb-lg">
                 <div className="flex gap-md personnel-filters" style={{ flexWrap: 'wrap' }}>
                     <div style={{ flex: '1', minWidth: '200px' }}>
@@ -279,7 +275,6 @@ export default function Personnel() {
                 </div>
             </div>
 
-            {/* Personnel Table */}
             {accountRequests.length > 0 && (
                 <section className="card account-requests-card mb-lg">
                     <div className="card-header">
@@ -405,14 +400,12 @@ export default function Personnel() {
                 )}
             </div>
 
-            {/* Add/Edit Modal */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
                 title={editingPerson ? 'Edit Personnel' : 'Add New Personnel'}
             >
                 <form onSubmit={handleSubmit}>
-                    {/* Error/Success Messages */}
                     {error && (
                         <div className="flex items-center gap-sm mb-md" style={{
                             padding: 'var(--space-md)',
@@ -448,13 +441,12 @@ export default function Personnel() {
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">Email Address {!editingPerson && formData.createAccount ? '*' : ''}</label>
+                        <label className="form-label">Email Address</label>
                         <input
                             type="email"
                             className="form-input"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            required={!editingPerson && formData.createAccount}
                         />
                     </div>
 
