@@ -1,4 +1,4 @@
-export const ARC_THEME_KEY = 'arc-theme';
+const ARC_THEME_KEY = 'arc-theme';
 
 export const getArcTheme = () => {
     if (typeof document === 'undefined') return 'light';
@@ -11,7 +11,7 @@ export const setArcTheme = (theme) => {
     try {
         globalThis.localStorage?.setItem(ARC_THEME_KEY, nextTheme);
     } catch {
-        // The theme still applies for this visit when storage is unavailable.
+        // Storage may be blocked; the theme still applies for this visit.
     }
     return nextTheme;
 };

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { db } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
@@ -113,8 +113,17 @@ const statusLabels = {
     concluded: 'Concluded'
 };
 
+const COMPACT_QUERY = '(max-width: 768px)';
+const subscribeCompact = (onChange) => {
+    const media = window.matchMedia(COMPACT_QUERY);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+};
+const useCompactLayout = () => useSyncExternalStore(subscribeCompact, () => window.matchMedia(COMPACT_QUERY).matches);
+
 export default function Schedule() {
     const { profile, isAdmin, canManageSchedule } = useAuth();
+    const isCompact = useCompactLayout();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [view, setView] = useState('month');
@@ -980,6 +989,7 @@ export default function Schedule() {
     }
 
     const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const maxDayEvents = view === 'week' ? 10 : isCompact ? 2 : 3;
     const selectedTeamPersonnelIds = eventForm.teams.flatMap((team) => (
         team.members.map((member) => member.personnel_id).filter(Boolean)
     ));
@@ -1030,7 +1040,7 @@ export default function Schedule() {
                                     {dayEvents.length > 0 && <span className="calendar-day-event-total">{dayEvents.length}</span>}
                                 </div>
                                 <div className="calendar-day-events">
-                                    {dayEvents.slice(0, view === 'week' ? 10 : 3).map((event) => {
+                                    {dayEvents.slice(0, maxDayEvents).map((event) => {
                                         const registered = event.schedules.filter((schedule) => schedule.personnel_id).length;
                                         const status = getEventStatus(event);
                                         const isMine = event.schedules.some((schedule) => schedule.personnel_id === profile?.id);
@@ -1042,7 +1052,7 @@ export default function Schedule() {
                                             </button>
                                         );
                                     })}
-                                    {dayEvents.length > (view === 'week' ? 10 : 3) && <span className="calendar-more-events">+{dayEvents.length - (view === 'week' ? 10 : 3)} more</span>}
+                                    {dayEvents.length > maxDayEvents && <span className="calendar-more-events">+{dayEvents.length - maxDayEvents}{isCompact ? '' : ' more'}</span>}
                                 </div>
                             </div>
                         );

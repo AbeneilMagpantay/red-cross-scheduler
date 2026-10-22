@@ -30,7 +30,7 @@ self.addEventListener('notificationclick', (event) => {
         const requestedUrl = new URL(event.notification.data?.url || DEFAULT_NOTIFICATION_URL, self.location.origin);
         if (requestedUrl.origin === self.location.origin) targetUrl = requestedUrl.href;
     } catch {
-        // Invalid or cross-origin notification targets always fall back to the app.
+        // Invalid URLs fall back to the default.
     }
 
     event.waitUntil(

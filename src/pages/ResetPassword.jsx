@@ -13,9 +13,9 @@ export default function ResetPassword() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        // Check if user arrived via a recovery link (Supabase sets a session)
+        // A valid recovery link signs the user in with a temporary session.
         const checkSession = async () => {
-            const { data: { session } } = await auth.getSession();
+            const { session } = await auth.getSession();
             if (session) {
                 setIsValidSession(true);
             } else {
@@ -62,7 +62,7 @@ export default function ResetPassword() {
 
     return (
         <div className="login-page">
-            <div className="login-container">
+            <div className="login-container is-single">
                 <div className="login-card">
                     <div className="login-logo">
                         <div className="icon">

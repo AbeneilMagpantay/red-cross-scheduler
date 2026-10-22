@@ -33,7 +33,7 @@ export const setArcSoundEnabled = (enabled) => {
     try {
         localStorage.setItem(SOUND_KEY, String(Boolean(enabled)));
     } catch {
-        // The in-memory preference still takes effect for the current click.
+        // Storage may be blocked; ignore.
     }
     return Boolean(enabled);
 };
@@ -56,6 +56,6 @@ export const playArcTap = () => {
         oscillator.start();
         oscillator.stop(context.currentTime + 0.05);
     } catch {
-        // Sound is a non-essential enhancement; unsupported devices stay silent.
+        // Sound is optional; stay silent on failure.
     }
 };

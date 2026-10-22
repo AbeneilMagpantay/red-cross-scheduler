@@ -4,28 +4,25 @@ import {
     ArrowDown,
     ArrowUp,
     Bell,
-    Bold,
     CheckCircle2,
     ExternalLink,
     HelpCircle,
-    Italic,
     Megaphone,
     Pencil,
     Pin,
     Plus,
     Send,
-    Strikethrough,
-    Trash2,
-    Underline
+    Trash2
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import FormatToolbar from '../components/FormatToolbar';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import {
     ALERT_CATEGORIES,
     getAlertCategoryClass,
     markAlertsRead,
-    normalizeAlertUrl,
+    normalizeExternalUrl,
     sortArcAlerts
 } from '../lib/alerts';
 import { arcHtmlToText, sanitizeArcHtml } from '../lib/arc';
@@ -130,11 +127,6 @@ export default function Alerts() {
         setDraft({ ...emptyDraft });
     };
 
-    const runFormat = (command, value = null) => {
-        editorRef.current?.focus();
-        document.execCommand(command, false, value);
-    };
-
     const saveAnnouncement = async () => {
         if (!canEditArc || saving) return;
         const bodyHtml = sanitizeArcHtml(editorRef.current?.innerHTML || '');
@@ -143,7 +135,7 @@ export default function Alerts() {
             return;
         }
 
-        if (draft.external_url.trim() && !normalizeAlertUrl(draft.external_url)) {
+        if (draft.external_url.trim() && !normalizeExternalUrl(draft.external_url)) {
             setNotice('The optional link must begin with http:// or https://.');
             return;
         }
@@ -161,7 +153,7 @@ export default function Alerts() {
             category: draft.category,
             title: draft.title.trim(),
             body_html: bodyHtml,
-            external_url: normalizeAlertUrl(draft.external_url) || null,
+            external_url: normalizeExternalUrl(draft.external_url) || null,
             is_pinned: Boolean(draft.is_pinned),
             author_name: profile?.name || 'ARC Council Operations',
             updated_by: profile?.id || null
@@ -315,7 +307,7 @@ export default function Alerts() {
                 {visibleAlerts.map((alert) => {
                     const group = sortArcAlerts(alerts).filter((item) => item.is_pinned === alert.is_pinned);
                     const groupIndex = group.findIndex((item) => item.id === alert.id);
-                    const externalUrl = normalizeAlertUrl(alert.external_url);
+                    const externalUrl = normalizeExternalUrl(alert.external_url);
                     return (
                         <article
                             key={alert.id}
@@ -370,14 +362,11 @@ export default function Alerts() {
                     </div>
                     <div className="form-group">
                         <label className="form-label">Message</label>
-                        <div className="arc-format-toolbar" aria-label="Announcement formatting">
-                            <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('bold'); }} aria-label="Bold"><Bold size={16} /></button>
-                            <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('italic'); }} aria-label="Italic"><Italic size={16} /></button>
-                            <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('underline'); }} aria-label="Underline"><Underline size={16} /></button>
-                            <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('strikeThrough'); }} aria-label="Strikethrough"><Strikethrough size={16} /></button>
-                            <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('formatBlock', '<h2>'); }}>H2</button>
-                            <button type="button" onMouseDown={(event) => { event.preventDefault(); runFormat('formatBlock', '<h3>'); }}>H3</button>
-                        </div>
+                        <FormatToolbar
+                            tools={['bold', 'italic', 'underline', 'strikethrough', 'h2', 'h3']}
+                            label="Announcement formatting"
+                            onBeforeFormat={() => editorRef.current?.focus()}
+                        />
                         <div
                             key={editingId || 'new'}
                             ref={editorRef}
@@ -405,7 +394,7 @@ export default function Alerts() {
                         <div className="alert-reader-labels"><span className={`alert-category ${getAlertCategoryClass(selectedAlert.category)}`}>{selectedAlert.category}</span>{selectedAlert.is_pinned && <span className="alert-pinned"><Pin size={13} /> Pinned</span>}</div>
                         <p className="alert-meta">{selectedAlert.author_name || 'ARC Council Operations'} · {new Date(selectedAlert.created_at).toLocaleString()}</p>
                         <div className="alert-reader-body" dangerouslySetInnerHTML={{ __html: sanitizeArcHtml(selectedAlert.body_html) }} />
-                        {selectedAlert.external_url && <a className="btn btn-secondary" href={normalizeAlertUrl(selectedAlert.external_url)} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Open external link</a>}
+                        {selectedAlert.external_url && <a className="btn btn-secondary" href={normalizeExternalUrl(selectedAlert.external_url)} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Open external link</a>}
                     </article>
                 )}
             </Modal>

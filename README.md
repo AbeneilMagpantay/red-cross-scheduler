@@ -11,12 +11,11 @@ A comprehensive web-based platform designed to streamline duty scheduling, perso
 - [Getting Started](#getting-started)
 - [Usage](#usage)
 - [Deploy](#deploy)
-- [License](#license)
 
 ## Features
 
 *   **Role-Based Access Control**: Secure authentication distinguishing between administrators and standard volunteers.
-*   **Dynamic Scheduling**: Drag-and-drop calendar interface for assigning field duties and managing rosters.
+*   **Dynamic Scheduling**: Month and week calendar for creating duties, teams, assignments, and reminders.
 *   **Personnel Management**: Centralized database for staff profiles, contact details, and department allocation.
 *   **Attendance Tracking**: Digital check-in/check-out system with automated status reporting (Present, Late, Absent).
 *   **Shift Swapping**: Automated workflow for personnel to request and validate shift exchanges.
@@ -28,8 +27,6 @@ A comprehensive web-based platform designed to streamline duty scheduling, perso
 *   **ARC Design System**: A responsive cream, maroon, and navy interface with light/dark themes, a collapsible sidebar, optional interface sounds, and an in-app walkthrough.
 
 ## Built With
-
-This project exploits a modern tech stack to ensure performance, scalability, and ease of maintenance.
 
 *   [React](https://reactjs.org/) - Frontend library for building user interfaces
 *   [Vite](https://vitejs.dev/) - Next Generation Frontend Tooling
@@ -148,24 +145,5 @@ The application is optimized for deployment on Vercel.
 1.  Push code to GitHub.
 2.  Import project into Vercel.
 3.  Set `Framework Preset` to **Vite**.
-4.  Add Environment Variables from `.env`.
+4.  Add the environment variables listed in `.env.example`.
 5.  Deploy.
-
-### ARC integration
-
-Apply `supabase/migrations/20260822_arc_integration.sql`, followed by
-`supabase/migrations/20260827_arc_alerts.sql`, after the earlier migrations.
-They convert existing Staff personnel to Officer, create NEXUS, CORE, and
-Alerts, create private QR storage, and install the required database access
-rules. Redeploy `send-deployment-notifications` so the existing Web Push setup
-can also send ARC announcements.
-
-After deployment, an Admin can open **Settings → Existing ARC Data** to import
-the latest snapshot from the legacy ARC site. Follow `ARC_CUTOVER.md` for the
-verification and read-only cutover sequence.
-
-## License
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
-

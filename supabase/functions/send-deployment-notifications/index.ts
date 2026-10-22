@@ -170,8 +170,7 @@ Deno.serve(async (request) => {
 
   if (subscriptionsError) return jsonResponse({ error: subscriptionsError.message }, 500);
 
-  // A subscription may outlive its Personnel account. Resolve restored users
-  // by verified Auth email, but never notify inactive or unlinked accounts.
+  // Notify only active personnel; restored accounts are matched by Auth email.
   const { data: activePersonnel, error: personnelError } = await adminClient
     .from('personnel')
     .select('id, email')

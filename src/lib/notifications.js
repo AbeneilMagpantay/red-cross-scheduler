@@ -39,7 +39,7 @@ export const enableDeploymentNotifications = async (userId) => {
     const registration = await navigator.serviceWorker.ready;
     let mode = 'live';
 
-    if (capability.backgroundConfigured && userId && supabase) {
+    if (capability.backgroundConfigured && supabase) {
         let subscription = await registration.pushManager.getSubscription();
         if (!subscription) {
             subscription = await registration.pushManager.subscribe({
@@ -116,9 +116,7 @@ export const showLiveArcAlertNotification = async (announcement, userId) => {
 
 export const showLiveDeploymentNotification = async (schedule, userId) => {
     const capability = getNotificationCapability(userId);
-
-    // The server sends background push when VAPID is configured. This fallback
-    // covers devices using live-only notifications while the app is running.
+    // With VAPID configured the server sends push; this covers live-only mode.
     if (!capability.enabled || capability.permission !== 'granted' || capability.backgroundConfigured) return;
 
     const registration = await navigator.serviceWorker.ready;

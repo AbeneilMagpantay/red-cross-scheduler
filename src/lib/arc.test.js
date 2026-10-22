@@ -6,27 +6,15 @@ import {
     createDefaultCoreFields,
     getCoreLineKeys,
     parseCustomCoreRows,
-    roleCanAccessArc,
     roleCanEditArc,
-    roleCanViewArc,
     sanitizeArcHtml
 } from './arc.js';
 
-test('allows only Admin and Officer roles into ARC modules', () => {
-    assert.equal(roleCanAccessArc('admin'), true);
-    assert.equal(roleCanAccessArc('officer'), true);
-    assert.equal(roleCanAccessArc('volunteer'), false);
-    assert.equal(roleCanAccessArc('staff'), false);
-});
-
-test('allows every active ARC role to view NEXUS and CORE but limits editing', () => {
-    assert.equal(roleCanViewArc('admin'), true);
-    assert.equal(roleCanViewArc('officer'), true);
-    assert.equal(roleCanViewArc('volunteer'), true);
-    assert.equal(roleCanViewArc('staff'), false);
+test('limits NEXUS and CORE editing to Admins and Officers', () => {
     assert.equal(roleCanEditArc('admin'), true);
     assert.equal(roleCanEditArc('officer'), true);
     assert.equal(roleCanEditArc('volunteer'), false);
+    assert.equal(roleCanEditArc('staff'), false);
 });
 
 test('builds CORE defaults with numbered Lead deliverables', () => {
@@ -46,6 +34,7 @@ test('keeps the original single-line key while numbering additional items', () =
         'status-finance-3'
     ]);
     assert.equal(countDeliverables('<ul><li>One</li><li>Two</li></ul>'), 2);
+    assert.equal(countDeliverables('Plain deliverable'), 1);
 });
 
 test('removes unsafe rich HTML and all element attributes', () => {
