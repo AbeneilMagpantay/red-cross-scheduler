@@ -2,13 +2,20 @@ import { useEffect, useState } from 'react';
 import { Bell, Calendar, Megaphone, UserCheck, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { showLiveArcAlertNotification, showLiveDeploymentNotification } from '../lib/notifications';
+import { showLiveArcAlertNotification, showLiveDeploymentNotification, syncPushSubscription } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 
 export default function DeploymentNotifications() {
     const { profile, user, isAdmin } = useAuth();
     const navigate = useNavigate();
     const [notification, setNotification] = useState(null);
+
+    useEffect(() => {
+        if (!profile?.id || !user?.id) return;
+        syncPushSubscription(user.id).catch((error) => {
+            console.warn('Unable to refresh this device\'s push subscription:', error);
+        });
+    }, [profile?.id, user?.id]);
 
     useEffect(() => {
         if (!supabase || !profile) return undefined;

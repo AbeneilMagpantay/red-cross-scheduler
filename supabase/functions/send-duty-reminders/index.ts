@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 };
 
+// web-push requires a mailto: or https: subject; accept a bare email too.
+const normalizeVapidSubject = (value?: string) => {
+  const subject = value?.trim() || 'mailto:admin@example.com';
+  return /^(mailto:|https:)/i.test(subject) ? subject : `mailto:${subject}`;
+};
+
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -83,7 +89,7 @@ type AccountRequestRow = {
   email: string;
 };
 
-Deno.serve(async (request) => {
+const handleRequest = async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
 
@@ -92,7 +98,7 @@ Deno.serve(async (request) => {
   const cronSecret = Deno.env.get('REMINDER_CRON_SECRET');
   const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
   const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
-  const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@example.com';
+  const vapidSubject = normalizeVapidSubject(Deno.env.get('VAPID_SUBJECT'));
 
   if (!supabaseUrl || !serviceRoleKey || !vapidPublicKey || !vapidPrivateKey) {
     return jsonResponse({ error: 'Reminder service is not configured' }, 503);
@@ -326,4 +332,14 @@ Deno.serve(async (request) => {
     approval_devices_delivered: approvalDevicesDelivered,
     approval_devices_failed: approvalDevicesFailed,
   });
+};
+
+// Return unexpected failures as JSON so callers (and pg_net) can see the cause.
+Deno.serve(async (request) => {
+  try {
+    return await handleRequest(request);
+  } catch (error) {
+    console.error(error);
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected error' }, 500);
+  }
 });

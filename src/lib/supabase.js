@@ -290,6 +290,13 @@ export const db = {
         });
     },
 
+    sendTestPush: async (delaySeconds = 0) => {
+        if (!supabase) return { data: null, error: NOT_CONFIGURED };
+        return supabase.functions.invoke('send-deployment-notifications', {
+            body: { test: true, delay_seconds: delaySeconds }
+        });
+    },
+
     // ===== NEXUS =====
     getArcResources: async () => {
         if (!supabase) return { data: [], error: null };

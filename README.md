@@ -75,25 +75,35 @@ Google users must have an existing Personnel record with the same email address.
 
 ### Deployment Notifications
 
-Apply the database migrations, generate Web Push VAPID keys, and deploy the notification function:
+Apply the database migrations, generate Web Push VAPID keys, and deploy the notification function.
+
+This project's migrations were applied by hand, so Supabase has no migration history for them and `supabase db push` would re-run every file. Apply only new migration files, in the SQL Editor or with `supabase db query --linked --file supabase/migrations/<file>.sql`.
 
 ```sh
-supabase db push
 npx web-push generate-vapid-keys
 supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:admin@example.com REMINDER_CRON_SECRET=...
 supabase functions deploy send-deployment-notifications
 supabase functions deploy send-duty-reminders --no-verify-jwt
 ```
 
-Set the generated public key as `VITE_VAPID_PUBLIC_KEY` in the deployed web app. Notifications require HTTPS in production. On iPhone and iPad, install the site to the Home Screen before enabling background notifications.
+Set the same public key as `VITE_VAPID_PUBLIC_KEY` in `.env.local` and in the Vercel project, then redeploy the site. Without it the app falls back to live notifications, which only work while the app is open. Notifications require HTTPS in production. On iPhone and iPad, install the site to the Home Screen before enabling background notifications.
 
-For timed duty reminders, create a Supabase Cron job that runs every 15 minutes and sends a `POST` request to `https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-duty-reminders`. Add an `x-cron-secret` header containing the same private value used for `REMINDER_CRON_SECRET`. The reminder function rejects calls that do not have this secret or the service-role token.
+Timed duty reminders run from the `20261022_duty_reminder_cron.sql` migration, which calls `send-duty-reminders` every 5 minutes. Before it can succeed, store the project URL and the `REMINDER_CRON_SECRET` value in Supabase Vault once (SQL Editor):
+
+```sql
+select vault.create_secret('https://YOUR_PROJECT_REF.supabase.co', 'project_url');
+select vault.create_secret('SAME_VALUE_AS_REMINDER_CRON_SECRET', 'reminder_cron_secret');
+```
+
+The reminder function rejects calls that do not have this secret or the service-role token. Check recent runs with `select * from cron.job_run_details order by start_time desc limit 10;`.
+
+To confirm background delivery end to end, open **Settings → ARC Notifications → Send Test**, then close the app. The test push arrives about 10 seconds later.
 
 ### Required security rollout
 
 Before treating a deployment as production-ready:
 
-1. Apply every migration, including `20260828_security_hardening.sql`, with `supabase db push` or by running that file in the Supabase SQL Editor. This removes the original public attendance/swap policies and enforces active-member, owner, and administrator access.
+1. Apply every migration, including `20260828_security_hardening.sql`, by running it in the Supabase SQL Editor. This removes the original public attendance/swap policies and enforces active-member, owner, and administrator access.
    After applying it, run `npm run security:check` locally. It performs anonymous, count-only reads and should report `PASS` for every protected table.
 2. Redeploy both Edge Functions after changing their code:
    ```sh

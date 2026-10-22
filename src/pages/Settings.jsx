@@ -21,7 +21,8 @@ import {
     disableDeploymentNotifications,
     enableDeploymentNotifications,
     getNotificationCapability,
-    showTestNotification
+    sendTestNotification,
+    TEST_PUSH_DELAY_SECONDS
 } from '../lib/notifications';
 import { getArcTheme, setArcTheme } from '../lib/theme';
 import { isArcSoundEnabled, setArcSoundEnabled } from '../lib/sounds';
@@ -117,8 +118,13 @@ export default function Settings() {
     const handleTestNotification = async () => {
         setNotificationMessage({ type: '', text: '' });
         try {
-            await showTestNotification(user?.id);
-            setNotificationMessage({ type: 'success', text: 'Test notification sent to this device.' });
+            const { mode } = await sendTestNotification(user?.id);
+            setNotificationMessage({
+                type: 'success',
+                text: mode === 'background'
+                    ? `Test scheduled. Close the app now; it should arrive in about ${TEST_PUSH_DELAY_SECONDS} seconds.`
+                    : 'Test notification sent to this device.'
+            });
         } catch (error) {
             setNotificationMessage({ type: 'error', text: error.message });
         }

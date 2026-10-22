@@ -1,7 +1,10 @@
-import { supabase } from './supabase';
+import { db, supabase } from './supabase';
 import { arcHtmlToText } from './arc';
 
 const NOTIFICATION_PREFERENCE_KEY = 'deployment-notifications-enabled';
+const NOTIFICATION_ICON = '/icon-192.png';
+const NOTIFICATION_BADGE = '/badge-96.png';
+export const TEST_PUSH_DELAY_SECONDS = 10;
 const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
 const getPreferenceKey = (userId) => `${NOTIFICATION_PREFERENCE_KEY}:${userId || 'anonymous'}`;
@@ -26,6 +29,36 @@ export const getNotificationCapability = (userId) => {
     };
 };
 
+const usesKey = (subscription, key) => {
+    const current = subscription.options?.applicationServerKey;
+    if (!current) return true;
+    const bytes = new Uint8Array(current);
+    return bytes.length === key.length && bytes.every((value, index) => value === key[index]);
+};
+
+// Subscribe this device (replacing a subscription made with an old VAPID key)
+// and save it so the server can reach it while the app is closed.
+const savePushSubscription = async (registration, userId) => {
+    const key = urlBase64ToUint8Array(vapidPublicKey);
+    let subscription = await registration.pushManager.getSubscription();
+    if (subscription && !usesKey(subscription, key)) {
+        await subscription.unsubscribe();
+        subscription = null;
+    }
+    if (!subscription) {
+        subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    }
+
+    const { error } = await supabase.from('push_subscriptions').upsert({
+        user_id: userId,
+        endpoint: subscription.endpoint,
+        subscription: subscription.toJSON(),
+        is_active: true,
+        updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,endpoint' });
+    if (error) throw error;
+};
+
 export const enableDeploymentNotifications = async (userId) => {
     const capability = getNotificationCapability();
     if (!capability.supported) throw new Error('Notifications are not supported by this browser.');
@@ -40,28 +73,20 @@ export const enableDeploymentNotifications = async (userId) => {
     let mode = 'live';
 
     if (capability.backgroundConfigured && supabase) {
-        let subscription = await registration.pushManager.getSubscription();
-        if (!subscription) {
-            subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
-            });
-        }
-
-        const { error } = await supabase.from('push_subscriptions').upsert({
-            user_id: userId,
-            endpoint: subscription.endpoint,
-            subscription: subscription.toJSON(),
-            is_active: true,
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id,endpoint' });
-
-        if (error) throw error;
+        await savePushSubscription(registration, userId);
         mode = 'background';
     }
 
     localStorage.setItem(getPreferenceKey(userId), 'true');
     return { ...getNotificationCapability(userId), mode };
+};
+
+// Run on every app start so devices stay reachable after key changes,
+// browser-rotated subscriptions, or rows the server removed.
+export const syncPushSubscription = async (userId) => {
+    const capability = getNotificationCapability(userId);
+    if (!userId || !supabase || !capability.enabled || !capability.backgroundConfigured || capability.permission !== 'granted') return;
+    await savePushSubscription(await navigator.serviceWorker.ready, userId);
 };
 
 export const disableDeploymentNotifications = async (userId) => {
@@ -84,20 +109,33 @@ export const disableDeploymentNotifications = async (userId) => {
     return getNotificationCapability(userId);
 };
 
-export const showTestNotification = async (userId) => {
+// Background mode sends a real push through the server after a short delay so
+// the user can close the app and confirm delivery; live mode shows it locally.
+export const sendTestNotification = async (userId) => {
     const capability = getNotificationCapability(userId);
     if (!capability.enabled || capability.permission !== 'granted') {
         throw new Error('Enable notifications first.');
     }
 
+    if (capability.backgroundConfigured) {
+        await syncPushSubscription(userId);
+        const { error } = await db.sendTestPush(TEST_PUSH_DELAY_SECONDS);
+        if (error) {
+            const details = await error.context?.json?.().catch(() => null);
+            throw new Error(details?.error || error.message || 'The test notification could not be sent.');
+        }
+        return { mode: 'background' };
+    }
+
     const registration = await navigator.serviceWorker.ready;
     await registration.showNotification('Notifications are ready', {
         body: 'You will be alerted about new deployment duties, ARC announcements, and relevant account updates.',
-        icon: '/app-icon.svg',
-        badge: '/app-icon.svg',
+        icon: NOTIFICATION_ICON,
+        badge: NOTIFICATION_BADGE,
         tag: 'notification-test',
         data: { url: '/settings' }
     });
+    return { mode: 'live' };
 };
 
 export const showLiveArcAlertNotification = async (announcement, userId) => {
@@ -107,8 +145,8 @@ export const showLiveArcAlertNotification = async (announcement, userId) => {
     const registration = await navigator.serviceWorker.ready;
     await registration.showNotification(announcement.title || 'New ARC Alert', {
         body: arcHtmlToText(announcement.body_html || '').slice(0, 180) || 'Open Alerts to read the announcement.',
-        icon: '/app-icon.svg',
-        badge: '/app-icon.svg',
+        icon: NOTIFICATION_ICON,
+        badge: NOTIFICATION_BADGE,
         tag: `arc-alert-${announcement.id}`,
         data: { url: '/alerts' }
     });
@@ -125,8 +163,8 @@ export const showLiveDeploymentNotification = async (schedule, userId) => {
 
     await registration.showNotification(schedule.title || 'New Deployment Duty', {
         body: details ? `Scheduled for ${details}.` : 'Open the schedule to view the details.',
-        icon: '/app-icon.svg',
-        badge: '/app-icon.svg',
+        icon: NOTIFICATION_ICON,
+        badge: NOTIFICATION_BADGE,
         tag: `deployment-${schedule.id}`,
         data: { url: '/schedule' }
     });

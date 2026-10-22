@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// web-push requires a mailto: or https: subject; accept a bare email too.
+const normalizeVapidSubject = (value?: string) => {
+  const subject = value?.trim() || 'mailto:admin@example.com';
+  return /^(mailto:|https:)/i.test(subject) ? subject : `mailto:${subject}`;
+};
+
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -52,7 +58,33 @@ const getValidatedSubscription = (row: PushSubscriptionRow) => {
   return subscription as unknown as Parameters<typeof webpush.sendNotification>[0];
 };
 
-Deno.serve(async (request) => {
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
+
+const MAX_TEST_DELAY_SECONDS = 30;
+
+type AdminClient = ReturnType<typeof createClient>;
+
+// Sends one push and removes subscriptions that are malformed or expired.
+const deliver = async (adminClient: AdminClient, row: PushSubscriptionRow, payload: string, ttl = 3600) => {
+  const subscription = getValidatedSubscription(row);
+  if (!subscription) {
+    await adminClient.from('push_subscriptions').delete().eq('id', row.id);
+    return 'invalid';
+  }
+
+  try {
+    await webpush.sendNotification(subscription, payload, { TTL: ttl, timeout: 10_000 });
+    return 'sent';
+  } catch (error) {
+    const statusCode = (error as { statusCode?: number }).statusCode;
+    if (statusCode === 404 || statusCode === 410) {
+      await adminClient.from('push_subscriptions').delete().eq('id', row.id);
+    }
+    return 'failed';
+  }
+};
+
+const handleRequest = async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
 
@@ -61,7 +93,7 @@ Deno.serve(async (request) => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
   const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
-  const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@example.com';
+  const vapidSubject = normalizeVapidSubject(Deno.env.get('VAPID_SUBJECT'));
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !vapidPublicKey || !vapidPrivateKey) {
     return jsonResponse({ error: 'Notification service is not configured' }, 503);
@@ -94,11 +126,47 @@ Deno.serve(async (request) => {
 
   if (!personnel?.is_active) return jsonResponse({ error: 'Inactive account' }, 403);
 
-  let requestBody: { schedule_id?: string; announcement_id?: string };
+  let requestBody: { schedule_id?: string; announcement_id?: string; test?: boolean; delay_seconds?: number };
   try {
     requestBody = await request.json();
   } catch {
     return jsonResponse({ error: 'A valid JSON request body is required' }, 400);
+  }
+
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+
+  // Test pushes go only to the caller's own devices.
+  if (requestBody.test) {
+    const delaySeconds = Math.min(Math.max(Math.floor(Number(requestBody.delay_seconds) || 0), 0), MAX_TEST_DELAY_SECONDS);
+    const { data: ownSubscriptions, error: ownSubscriptionsError } = await adminClient
+      .from('push_subscriptions')
+      .select('id, user_id, endpoint, subscription')
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    if (ownSubscriptionsError) return jsonResponse({ error: ownSubscriptionsError.message }, 500);
+    if (!ownSubscriptions?.length) {
+      return jsonResponse({ error: 'This account has no device registered for background notifications. Turn notifications off and on again in Settings.' }, 404);
+    }
+
+    const payload = JSON.stringify({
+      title: 'Test notification',
+      body: 'Background notifications are working on this device.',
+      tag: 'notification-test',
+      url: '/settings',
+    });
+    const sendAll = async () => {
+      const results = await Promise.all((ownSubscriptions as PushSubscriptionRow[]).map((row) => deliver(adminClient, row, payload, 600)));
+      return { delivered: results.filter((result) => result === 'sent').length, failed: results.filter((result) => result !== 'sent').length };
+    };
+
+    if (!delaySeconds) return jsonResponse(await sendAll());
+
+    EdgeRuntime.waitUntil((async () => {
+      await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
+      await sendAll();
+    })());
+    return jsonResponse({ scheduled: ownSubscriptions.length, delay_seconds: delaySeconds });
   }
 
   const {
@@ -198,7 +266,6 @@ Deno.serve(async (request) => {
     if (authPage.users.length < 1000) break;
   }
 
-  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
   const notification = JSON.stringify({
     title: notificationTitle,
     body: notificationBody,
@@ -215,24 +282,12 @@ Deno.serve(async (request) => {
       await adminClient.from('push_subscriptions').delete().eq('id', row.id);
       return;
     }
-
-    const subscription = getValidatedSubscription(row);
-    if (!subscription || uniqueEndpoints.has(row.endpoint)) {
-      if (!subscription) await adminClient.from('push_subscriptions').delete().eq('id', row.id);
-      return;
-    }
+    if (uniqueEndpoints.has(row.endpoint)) return;
     uniqueEndpoints.add(row.endpoint);
 
-    try {
-      await webpush.sendNotification(subscription, notification, { TTL: 3600, timeout: 10_000 });
-      delivered += 1;
-    } catch (error) {
-      failed += 1;
-      const statusCode = (error as { statusCode?: number }).statusCode;
-      if (statusCode === 404 || statusCode === 410) {
-        await adminClient.from('push_subscriptions').delete().eq('id', row.id);
-      }
-    }
+    const result = await deliver(adminClient, row, notification);
+    if (result === 'sent') delivered += 1;
+    if (result === 'failed') failed += 1;
   }));
 
   if (announcementId) {
@@ -243,4 +298,14 @@ Deno.serve(async (request) => {
   }
 
   return jsonResponse({ delivered, failed });
+};
+
+// Return unexpected failures as JSON so callers (and pg_net) can see the cause.
+Deno.serve(async (request) => {
+  try {
+    return await handleRequest(request);
+  } catch (error) {
+    console.error(error);
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected error' }, 500);
+  }
 });
