@@ -100,11 +100,17 @@ const emptyAssignmentForm = () => ({
 const toLocalDate = (date) => new Date(`${date}T00:00:00`);
 const getLastName = (name = '') => name.trim().split(/\s+/).filter(Boolean).at(-1) || 'Unknown';
 
-const getEventTimeRange = (event) => {
+// Earliest start and latest end across an event's rows, as HH:MM.
+const getEventWindow = (event) => {
     const startTimes = event.schedules.map((schedule) => schedule.start_time?.slice(0, 5)).filter(Boolean).sort();
     const endTimes = event.schedules.map((schedule) => schedule.end_time?.slice(0, 5)).filter(Boolean).sort();
-    if (!startTimes.length || !endTimes.length) return 'Time to be announced';
-    return `${startTimes[0]} – ${endTimes[endTimes.length - 1]}`;
+    return { start: startTimes[0] || null, end: endTimes.at(-1) || null };
+};
+
+const getEventTimeRange = (event) => {
+    const { start, end } = getEventWindow(event);
+    if (!start || !end) return 'Time to be announced';
+    return `${start} – ${end}`;
 };
 
 const statusLabels = {
@@ -131,6 +137,7 @@ export default function Schedule() {
     const [dutyTeams, setDutyTeams] = useState([]);
     const [personnel, setPersonnel] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
 
     const [viewingEventId, setViewingEventId] = useState(null);
     const [registeringEventId, setRegisteringEventId] = useState(null);
@@ -145,6 +152,7 @@ export default function Schedule() {
     const [updatingTeamMemberId, setUpdatingTeamMemberId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [eventStep, setEventStep] = useState(0);
+    const [wizardError, setWizardError] = useState('');
 
     const [eventForm, setEventForm] = useState(() => emptyEventForm());
     const [registerForm, setRegisterForm] = useState({
@@ -180,8 +188,10 @@ export default function Schedule() {
             setSchedules(loadedSchedules);
             setDutyTeams(teamRes.data || []);
             setPersonnel(personnelRes.data?.filter((person) => person.is_active) || []);
+            setLoadError('');
         } catch (error) {
             console.error('Error loading schedule:', error);
+            setLoadError(error.message || 'The schedule could not be loaded.');
         } finally {
             setLoading(false);
         }
@@ -256,17 +266,17 @@ export default function Schedule() {
 
     const openCreateEvent = (date = selectedDate) => {
         if (!canManageSchedule) return;
+        const today = new Date();
         setEditingEvent(null);
-        setEventForm(emptyEventForm(date));
-        setEventStep(0);
+        setEventForm(emptyEventForm(format(date, 'yyyy-MM-dd') < format(today, 'yyyy-MM-dd') ? today : date));
+        goToEventStep(0);
         setIsEventModalOpen(true);
     };
 
     const openEditEvent = (event) => {
         if (!canManageSchedule || getEventStatus(event) === 'concluded') return;
 
-        const eventStartTimes = event.schedules.map((schedule) => schedule.start_time?.slice(0, 5)).filter(Boolean).sort();
-        const eventEndTimes = event.schedules.map((schedule) => schedule.end_time?.slice(0, 5)).filter(Boolean).sort();
+        const eventWindow = getEventWindow(event);
 
         setEditingEvent(event);
         setEventForm({
@@ -281,10 +291,10 @@ export default function Schedule() {
             contact_person: event.contactPerson,
             contact_number: event.contactNumber,
             reminder_hours: (event.reminderOffsets || []).map((minutes) => String(minutes / 60)),
-            start_time: eventStartTimes[0] || '08:00',
-            end_time: eventEndTimes[eventEndTimes.length - 1] || '17:00'
+            start_time: eventWindow.start || '08:00',
+            end_time: eventWindow.end || '17:00'
         });
-        setEventStep(0);
+        goToEventStep(0);
         setViewingEventId(null);
         setIsEventModalOpen(true);
     };
@@ -293,13 +303,30 @@ export default function Schedule() {
         if (saving) return;
         setIsEventModalOpen(false);
         setEditingEvent(null);
-        setEventStep(0);
+        goToEventStep(0);
+    };
+
+    const getScheduleStepError = () => {
+        if (!eventForm.duty_date) return 'Choose a duty date.';
+        if (!editingEvent && eventForm.duty_date < format(new Date(), 'yyyy-MM-dd')) return 'Choose today or a future date.';
+        if (!eventForm.start_time || !eventForm.end_time) return 'Set both a start and end time.';
+        return '';
+    };
+
+    const goToEventStep = (index) => {
+        setWizardError('');
+        setEventStep(index);
     };
 
     const handleEventNext = (clickEvent) => {
         clickEvent.preventDefault();
         clickEvent.stopPropagation();
-        setEventStep((current) => Math.min(current + 1, eventSteps.length - 1));
+        const stepError = activeEventStep.id === 'schedule' ? getScheduleStepError() : '';
+        if (stepError) {
+            setWizardError(stepError);
+            return;
+        }
+        goToEventStep(Math.min(eventStep + 1, eventSteps.length - 1));
     };
 
     const addTeam = () => setEventForm((current) => ({ ...current, teams: [...current.teams, createTeam()] }));
@@ -372,6 +399,12 @@ export default function Schedule() {
 
     const handleEventSubmit = async (event) => {
         event.preventDefault();
+        const scheduleError = getScheduleStepError();
+        if (scheduleError) {
+            setEventStep(0);
+            setWizardError(scheduleError);
+            return;
+        }
 
         setSaving(true);
 
@@ -380,7 +413,7 @@ export default function Schedule() {
             const dutyDate = eventForm.duty_date || editingEvent?.date || format(new Date(), 'yyyy-MM-dd');
             const startTime = eventForm.start_time || '00:00';
             const endTime = eventForm.end_time || '23:59';
-            const eventDetails = {
+            const sharedDetails = {
                 title: eventForm.title.trim() || null,
                 duty_description: eventForm.duty_description.trim() || null,
                 duty_date: dutyDate,
@@ -391,14 +424,27 @@ export default function Schedule() {
                 coordinator: eventForm.coordinator.trim() || null,
                 contact_person: eventForm.contact_person.trim() || null,
                 contact_number: eventForm.contact_number.trim() || null,
-                reminder_offsets: reminderOffsets,
-                start_time: startTime,
-                end_time: endTime
+                reminder_offsets: reminderOffsets
             };
+            const eventDetails = { ...sharedDetails, start_time: startTime, end_time: endTime };
 
             if (editingEvent) {
-                const { error } = await db.updateEvent(editingEvent.eventId, eventDetails);
+                // Checked-out duties are locked by the database, and volunteers keep
+                // their own shift times unless the event's window was changed.
+                const editableRows = editingEvent.schedules.filter((schedule) => !hasCheckedOut(schedule));
+                const { error } = await db.updateEventRows(editableRows.map((schedule) => schedule.id), sharedDetails);
                 if (error) throw error;
+
+                const originalWindow = getEventWindow(editingEvent);
+                if (startTime !== originalWindow.start || endTime !== originalWindow.end) {
+                    const anchor = editableRows.find((schedule) => schedule.is_event_anchor);
+                    const timedRows = anchor ? [anchor] : editableRows;
+                    const { error: timeError } = await db.updateEventRows(
+                        timedRows.map((schedule) => schedule.id),
+                        { start_time: startTime, end_time: endTime }
+                    );
+                    if (timeError) throw timeError;
+                }
             } else {
                 const { data: createdSchedule, error } = await db.createSchedule({
                     ...eventDetails,
@@ -487,8 +533,9 @@ export default function Schedule() {
 
     const openRegister = (event) => {
         if (getEventStatus(event) === 'concluded') return;
+        const eventWindow = getEventWindow(event);
         setRegisteringEventId(event.id);
-        setRegisterForm({ start_time: '08:00', end_time: '17:00', notes: '' });
+        setRegisterForm({ start_time: eventWindow.start || '08:00', end_time: eventWindow.end || '17:00', notes: '' });
         setViewingEventId(null);
         setIsRegisterModalOpen(true);
     };
@@ -994,6 +1041,11 @@ export default function Schedule() {
         team.members.map((member) => member.personnel_id).filter(Boolean)
     ));
     const teamManagerMembers = teamManagerEvent?.schedules.filter((schedule) => schedule.personnel_id) || [];
+    // People already on the duty can't be added twice (the person being edited stays selectable).
+    const assignedElsewhere = new Set((assignmentEvent?.schedules || [])
+        .filter((schedule) => schedule.personnel_id && schedule.id !== editingSchedule?.id)
+        .map((schedule) => schedule.personnel_id));
+    const availableAssignmentPersonnel = personnel.filter((person) => !assignedElsewhere.has(person.id));
     const unassignedTeamMembers = teamManagerMembers.filter((schedule) => !schedule.team_id && !schedule.team_station);
 
     return (
@@ -1022,6 +1074,8 @@ export default function Schedule() {
                     <button type="button" className={view === 'week' ? 'is-active' : ''} onClick={() => setView('week')}>Week</button>
                 </div>
             </section>
+
+            {loadError && <div className="inline-alert error" role="alert">{loadError}</div>}
 
             <div className={`calendar schedule-calendar ${view}-view`}>
                 <div className="calendar-grid">
@@ -1100,9 +1154,7 @@ export default function Schedule() {
                                 key={step.id}
                                 className={`schedule-wizard-step ${index === eventStep ? 'is-active' : ''} ${index < eventStep ? 'is-complete' : ''}`}
                                 onClick={() => {
-                                    if (index <= eventStep) {
-                                        setEventStep(index);
-                                    }
+                                    if (index <= eventStep) goToEventStep(index);
                                 }}
                                 disabled={index > eventStep}
                                 aria-current={index === eventStep ? 'step' : undefined}
@@ -1117,11 +1169,12 @@ export default function Schedule() {
                         <span>Step {eventStep + 1} of {eventSteps.length}</span>
                         <h2>{activeEventStep.label}</h2>
                     </div>
+                    {wizardError && <div className="inline-alert error" role="alert">{wizardError}</div>}
 
                     {activeEventStep.id === 'schedule' && (
                         <section className="schedule-form-section schedule-wizard-panel">
                             <div className="schedule-form-section-title"><CalendarIcon size={19} /><div><strong>When will the duty happen?</strong><span>Set the shared schedule for this deployment.</span></div></div>
-                            <div className="form-group"><label className="form-label">Duty date</label><input type="date" className="form-input" value={eventForm.duty_date} onChange={(event) => setEventForm({ ...eventForm, duty_date: event.target.value })} /></div>
+                            <div className="form-group"><label className="form-label">Duty date *</label><input type="date" className="form-input" value={eventForm.duty_date} min={editingEvent ? undefined : format(new Date(), 'yyyy-MM-dd')} onChange={(event) => { setWizardError(''); setEventForm({ ...eventForm, duty_date: event.target.value }); }} required /></div>
                             <div className="schedule-form-grid two-columns">
                                 <div className="form-group"><label className="form-label">Start time</label><input type="time" className="form-input" value={eventForm.start_time} onChange={(event) => setEventForm({ ...eventForm, start_time: event.target.value })} /></div>
                                 <div className="form-group"><label className="form-label">End time</label><input type="time" className="form-input" value={eventForm.end_time} onChange={(event) => setEventForm({ ...eventForm, end_time: event.target.value })} /></div>
@@ -1220,7 +1273,7 @@ export default function Schedule() {
                         <div>{editingEvent && <button type="button" className="btn btn-danger" onClick={() => handleDeleteEvent(editingEvent)} disabled={saving}><Trash2 size={17} /> Delete event</button>}</div>
                         <div className="schedule-wizard-navigation">
                             <button type="button" className="btn btn-secondary" onClick={closeEventModal} disabled={saving}>Cancel</button>
-                            {eventStep > 0 && <button type="button" className="btn btn-secondary" onClick={() => setEventStep((current) => current - 1)} disabled={saving}><ChevronLeft size={17} /> Back</button>}
+                            {eventStep > 0 && <button type="button" className="btn btn-secondary" onClick={() => goToEventStep(eventStep - 1)} disabled={saving}><ChevronLeft size={17} /> Back</button>}
                             {eventStep < eventSteps.length - 1
                                 ? <button key="wizard-next" type="button" className="btn btn-primary" onClick={handleEventNext} disabled={saving}>Next <ChevronRight size={17} /></button>
                                 : <button key="wizard-submit" type="submit" className="btn btn-primary" disabled={saving}>{editingEvent ? <Pencil size={17} /> : <Plus size={17} />}{saving ? 'Saving…' : editingEvent ? 'Save changes' : 'Create duty'}</button>}
@@ -1300,7 +1353,7 @@ export default function Schedule() {
                     {editingSchedule?.personnel_id === profile?.id && <div className="schedule-permission-note"><LockKeyhole size={17} /><span>You are editing your own duty. Only your time and personal notes can be changed.</span></div>}
                     {(!editingSchedule || editingSchedule.personnel_id !== profile?.id) && canManageSchedule && (
                         <div className="schedule-form-grid two-columns schedule-assignment-admin-fields">
-                            <div className="form-group"><label className="form-label">Personnel *</label><select className="form-select" value={assignmentForm.personnel_id} onChange={(event) => setAssignmentForm({ ...assignmentForm, personnel_id: event.target.value })} required><option value="">Select personnel</option>{personnel.map((person) => <option key={person.id} value={person.id}>{person.name} ({person.role})</option>)}</select></div>
+                            <div className="form-group"><label className="form-label">Personnel *</label><select className="form-select" value={assignmentForm.personnel_id} onChange={(event) => setAssignmentForm({ ...assignmentForm, personnel_id: event.target.value })} required><option value="">Select personnel</option>{availableAssignmentPersonnel.map((person) => <option key={person.id} value={person.id}>{person.name} ({person.role})</option>)}</select></div>
                             <div className="form-group"><label className="form-label">Team</label><select className="form-select" value={assignmentForm.team_id} onChange={(event) => setAssignmentForm({ ...assignmentForm, team_id: event.target.value })}><option value="">Unassigned</option>{assignmentEvent?.teams.map((team) => <option key={team.id} value={team.id}>{getTeamDisplayName(team, assignmentEvent)}</option>)}</select></div>
                             <div className="form-group schedule-assignment-role-field"><label className="form-label">Role</label><input className="form-input" value={assignmentForm.assignment_role} onChange={(event) => setAssignmentForm({ ...assignmentForm, assignment_role: event.target.value })} /></div>
                         </div>

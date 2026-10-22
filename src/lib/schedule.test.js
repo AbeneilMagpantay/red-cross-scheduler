@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     buildScheduleEvents,
+    getCheckInStatus,
     getEventStatus,
     hasCheckedOut,
     organizeEventAssignments,
@@ -99,6 +100,14 @@ test('pins the current user and sorts remaining volunteers by AM, PM, time, then
     assert.deepEqual(result.groups.map((group) => group.period), ['AM', 'PM']);
     assert.deepEqual(result.groups[0].assignments.map((item) => item.personnel.name), ['Alex', 'Cal']);
     assert.deepEqual(result.groups[1].assignments.map((item) => item.personnel.name), ['Bea']);
+});
+
+test('marks check-ins late only after the 15-minute grace period', () => {
+    assert.equal(getCheckInStatus('2026-08-20', '08:00:00', new Date('2026-08-20T07:40:00')), 'present');
+    assert.equal(getCheckInStatus('2026-08-20', '08:00:00', new Date('2026-08-20T08:15:00')), 'present');
+    assert.equal(getCheckInStatus('2026-08-20', '08:00:00', new Date('2026-08-20T08:16:00')), 'late');
+    assert.equal(getCheckInStatus('2026-08-20', '22:00:00', new Date('2026-08-21T00:30:00')), 'late');
+    assert.equal(getCheckInStatus('2026-08-20', null, new Date('2026-08-20T12:00:00')), 'present');
 });
 
 test('recognizes completed attendance as checked out', () => {

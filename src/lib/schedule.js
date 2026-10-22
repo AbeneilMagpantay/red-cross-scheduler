@@ -1,4 +1,4 @@
-const FALLBACK_EVENT_TITLE = 'Individual Duty';
+export const UNTITLED_DUTY = 'Untitled Duty';
 
 const normalizeTitle = (title) => title?.trim().replace(/\s+/g, ' ').toLocaleLowerCase() || '';
 
@@ -41,7 +41,7 @@ export const buildScheduleEvents = (schedules = [], dutyTeams = []) => {
         groups.set(key, {
             id: key,
             eventId: schedule.event_id || null,
-            title: schedule.title?.trim() || FALLBACK_EVENT_TITLE,
+            title: schedule.title?.trim() || UNTITLED_DUTY,
             dutyDescription: schedule.duty_description || '',
             date: schedule.duty_date,
             preciseLocation: schedule.precise_location || '',
@@ -78,6 +78,15 @@ export const getEventStatus = (event, now = new Date()) => {
     if (now < startsAt) return 'upcoming';
     if (now > endsAt) return 'concluded';
     return 'ongoing';
+};
+
+export const LATE_GRACE_MINUTES = 15;
+
+// Check-ins more than the grace period after the scheduled start count as late.
+export const getCheckInStatus = (dutyDate, startTime, now = new Date()) => {
+    if (!dutyDate || !startTime) return 'present';
+    const startsAt = localDateTime(dutyDate, startTime.slice(0, 5));
+    return now.getTime() - startsAt.getTime() > LATE_GRACE_MINUTES * 60 * 1000 ? 'late' : 'present';
 };
 
 export const hasCheckedOut = (schedule) => {

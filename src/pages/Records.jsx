@@ -33,6 +33,7 @@ export default function Records() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState('all');
+    const [loadError, setLoadError] = useState('');
 
     useEffect(() => {
         loadData();
@@ -43,8 +44,10 @@ export default function Records() {
             const { data, error } = await db.getAttendance();
             if (error) throw error;
             setAttendanceRecords(data || []);
+            setLoadError('');
         } catch (error) {
             console.error('Error loading records:', error);
+            setLoadError(error.message || 'Duty records could not be loaded.');
         } finally {
             setLoading(false);
         }
@@ -98,6 +101,8 @@ export default function Records() {
                     <p className="page-subtitle">Event attendance history and your personal duty summary</p>
                 </div>
             </div>
+
+            {loadError && <div className="inline-alert error mb-lg" role="alert">{loadError}</div>}
 
             <section className="card mb-lg" aria-labelledby="personal-duty-summary">
                 <div className="card-header">

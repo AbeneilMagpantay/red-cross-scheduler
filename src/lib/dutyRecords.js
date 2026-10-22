@@ -1,3 +1,5 @@
+import { UNTITLED_DUTY } from './schedule.js';
+
 const normalizeTitle = (title) => title.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 
 const getScheduledTime = (schedule) => {
@@ -18,7 +20,7 @@ export const groupAttendanceByEvent = (attendanceRecords = []) => {
         if (!schedule?.duty_date) return;
 
         const rawTitle = schedule.title?.trim() || '';
-        const title = rawTitle || 'Untitled Duty';
+        const title = rawTitle || UNTITLED_DUTY;
         const date = schedule.duty_date;
         const scheduledTime = getScheduledTime(schedule);
 

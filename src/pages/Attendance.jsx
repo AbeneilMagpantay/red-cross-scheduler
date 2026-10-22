@@ -9,8 +9,17 @@ import {
     AlertCircle,
     Calendar
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { getCheckInStatus } from '../lib/schedule';
+import { getRoleLabel } from '../lib/status';
+
+const ATTENDANCE_STATUSES = [
+    { value: 'present', label: 'Present' },
+    { value: 'late', label: 'Late' },
+    { value: 'absent', label: 'Absent' },
+    { value: 'excused', label: 'Excused' }
+];
 
 export default function Attendance() {
     const { profile, isAdmin } = useAuth();
@@ -18,10 +27,12 @@ export default function Attendance() {
     const [schedules, setSchedules] = useState([]);
     const [attendance, setAttendance] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [savingId, setSavingId] = useState(null);
     const [error, setError] = useState('');
+    const isToday = selectedDate === format(new Date(), 'yyyy-MM-dd');
 
-    const loadData = useCallback(async () => {
-        setLoading(true);
+    const loadData = useCallback(async ({ quiet = false } = {}) => {
+        if (!quiet) setLoading(true);
         try {
             const { data: scheduleData, error: schedulesError } = await db.getSchedules(selectedDate, selectedDate);
             const { data: attendanceData, error: attendanceError } = await db.getAttendance(selectedDate);
@@ -46,52 +57,44 @@ export default function Attendance() {
         return attendance.find(a => a.schedule_id === scheduleId);
     };
 
-    const handleCheckIn = async (scheduleId, personnelId) => {
+    // Runs one attendance write for a row, keeping its buttons disabled until done.
+    const saveRow = async (scheduleId, write, failureMessage) => {
+        if (savingId) return;
+        setSavingId(scheduleId);
+        setError('');
         try {
-            setError('');
-            const { error: checkInError } = await db.createAttendance({
-                schedule_id: scheduleId,
-                personnel_id: personnelId,
-                check_in: new Date().toISOString(),
-                status: 'present'
-            });
-            if (checkInError) throw checkInError;
-            loadData();
-        } catch (error) {
-            console.error('Error recording check-in:', error);
-            setError(error.message || 'Attendance could not be recorded.');
+            const { error: saveError } = await write();
+            if (saveError) throw saveError;
+            await loadData({ quiet: true });
+        } catch (saveError) {
+            console.error(failureMessage, saveError);
+            if (saveError.code === '23505') {
+                setError('Attendance was already recorded for this duty.');
+                await loadData({ quiet: true });
+            } else {
+                setError(saveError.message || failureMessage);
+            }
+        } finally {
+            setSavingId(null);
         }
     };
 
-    const handleCheckOut = async (attendanceId) => {
-        try {
-            setError('');
-            const { error: checkOutError } = await db.updateAttendance(attendanceId, {
-                check_out: new Date().toISOString()
-            });
-            if (checkOutError) throw checkOutError;
-            loadData();
-        } catch (error) {
-            console.error('Error recording check-out:', error);
-            setError(error.message || 'Check-out could not be recorded.');
-        }
-    };
+    const handleCheckIn = (schedule) => saveRow(schedule.id, () => db.createAttendance({
+        schedule_id: schedule.id,
+        personnel_id: schedule.personnel_id,
+        check_in: new Date().toISOString(),
+        status: getCheckInStatus(schedule.duty_date, schedule.start_time)
+    }), 'Attendance could not be recorded.');
 
-    const handleMarkStatus = async (scheduleId, personnelId, status) => {
-        try {
-            setError('');
-            const { error: statusError } = await db.createAttendance({
-                schedule_id: scheduleId,
-                personnel_id: personnelId,
-                status: status
-            });
-            if (statusError) throw statusError;
-            loadData();
-        } catch (error) {
-            console.error('Error marking status:', error);
-            setError(error.message || 'Attendance status could not be recorded.');
-        }
-    };
+    const handleCheckOut = (schedule, attendanceId) => saveRow(schedule.id, () => db.updateAttendance(attendanceId, {
+        check_out: new Date().toISOString()
+    }), 'Check-out could not be recorded.');
+
+    const handleSetStatus = (schedule, record, status) => saveRow(schedule.id, () => (
+        record
+            ? db.updateAttendance(record.id, { status })
+            : db.createAttendance({ schedule_id: schedule.id, personnel_id: schedule.personnel_id, status })
+    ), 'Attendance status could not be recorded.');
 
     const getStatusBadge = (status) => {
         const badges = {
@@ -131,7 +134,7 @@ export default function Attendance() {
                         type="date"
                         className="form-input"
                         value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
+                        onChange={(e) => { if (e.target.value) setSelectedDate(e.target.value); }}
                         style={{ width: 'auto' }}
                     />
                 </div>
@@ -185,7 +188,7 @@ export default function Attendance() {
             <div className="card">
                 <div className="card-header">
                     <h3 className="card-title">
-                        {format(new Date(selectedDate), 'EEEE, MMMM d, yyyy')}
+                        {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
                     </h3>
                 </div>
 
@@ -213,6 +216,13 @@ export default function Attendance() {
                                     const att = getAttendanceForSchedule(schedule.id);
                                     const statusInfo = att ? getStatusBadge(att.status) : getStatusBadge(null);
                                     const canManageAttendance = isAdmin || schedule.personnel_id === profile?.id;
+                                    const isSaving = savingId === schedule.id;
+                                    const canCheckIn = canManageAttendance && isToday && !att;
+                                    const canCheckOut = canManageAttendance && att?.check_in && !att.check_out
+                                        && (att.status === 'present' || att.status === 'late');
+                                    const idleLabel = !canManageAttendance ? 'View only'
+                                        : att ? 'Recorded'
+                                            : selectedDate > format(new Date(), 'yyyy-MM-dd') ? 'Opens on duty day' : 'Not recorded';
 
                                     return (
                                         <tr key={schedule.id}>
@@ -223,7 +233,7 @@ export default function Attendance() {
                                                     </div>
                                                     <div>
                                                         <div>{schedule.personnel?.name}</div>
-                                                        <div className="text-sm text-muted">{schedule.personnel?.role}</div>
+                                                        <div className="text-sm text-muted">{getRoleLabel(schedule.personnel?.role)}</div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -251,35 +261,36 @@ export default function Attendance() {
                                                 </span>
                                             </td>
                                             <td data-label="Actions">
-                                                {!canManageAttendance ? (
-                                                    <span className="text-muted text-sm">View only</span>
-                                                ) : !att ? (
-                                                    <div className="flex gap-sm">
-                                                        <button
-                                                            className="btn btn-sm btn-primary"
-                                                            onClick={() => handleCheckIn(schedule.id, schedule.personnel_id)}
-                                                        >
+                                                <div className="attendance-actions">
+                                                    {canCheckIn && (
+                                                        <button className="btn btn-sm btn-primary" onClick={() => handleCheckIn(schedule)} disabled={isSaving}>
                                                             <LogIn size={14} />
                                                             Check In
                                                         </button>
-                                                        <button
-                                                            className="btn btn-sm btn-secondary"
-                                                            onClick={() => handleMarkStatus(schedule.id, schedule.personnel_id, 'absent')}
-                                                        >
-                                                            Absent
+                                                    )}
+                                                    {canCheckOut && (
+                                                        <button className="btn btn-sm btn-secondary" onClick={() => handleCheckOut(schedule, att.id)} disabled={isSaving}>
+                                                            <LogOutIcon size={14} />
+                                                            Check Out
                                                         </button>
-                                                    </div>
-                                                ) : !att.check_out && att.status === 'present' ? (
-                                                    <button
-                                                        className="btn btn-sm btn-secondary"
-                                                        onClick={() => handleCheckOut(att.id)}
-                                                    >
-                                                        <LogOutIcon size={14} />
-                                                        Check Out
-                                                    </button>
-                                                ) : (
-                                                    <span className="text-muted text-sm">Recorded</span>
-                                                )}
+                                                    )}
+                                                    {isAdmin ? (
+                                                        <select
+                                                            className="form-select attendance-status-select"
+                                                            value={att?.status || ''}
+                                                            onChange={(e) => { if (e.target.value) handleSetStatus(schedule, att, e.target.value); }}
+                                                            disabled={isSaving}
+                                                            aria-label={`Attendance status for ${schedule.personnel?.name || 'this volunteer'}`}
+                                                        >
+                                                            {!att && <option value="">Set status…</option>}
+                                                            {ATTENDANCE_STATUSES.map((status) => (
+                                                                <option key={status.value} value={status.value}>{status.label}</option>
+                                                            ))}
+                                                        </select>
+                                                    ) : !canCheckIn && !canCheckOut && (
+                                                        <span className="text-muted text-sm">{idleLabel}</span>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );

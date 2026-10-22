@@ -193,13 +193,14 @@ export const db = {
         return query.order('duty_date').order('start_time');
     },
 
-    getSchedulesByPersonnel: async (personnelId) => {
+    getSchedulesByPersonnel: async (personnelId, fromDate) => {
         if (!supabase) return { data: [], error: null };
-        return supabase
+        let query = supabase
             .from('schedules')
             .select('*')
-            .eq('personnel_id', personnelId)
-            .order('duty_date');
+            .eq('personnel_id', personnelId);
+        if (fromDate) query = query.gte('duty_date', fromDate);
+        return query.order('duty_date').order('start_time');
     },
 
     createSchedule: async (schedule) => {
@@ -218,9 +219,10 @@ export const db = {
         return supabase.from('schedules').update(updates).eq('id', id).select(SCHEDULE_SELECT).single();
     },
 
-    updateEvent: async (eventId, updates) => {
+    updateEventRows: async (ids, updates) => {
         if (!supabase) return { data: null, error: NOT_CONFIGURED };
-        return supabase.from('schedules').update(updates).eq('event_id', eventId).select(SCHEDULE_SELECT);
+        if (!ids?.length) return { data: [], error: null };
+        return supabase.from('schedules').update(updates).in('id', ids).select(SCHEDULE_SELECT);
     },
 
     deleteSchedule: async (id) => {
@@ -430,9 +432,11 @@ export const db = {
     // ===== ATTENDANCE =====
     getAttendance: async (date) => {
         if (!supabase) return { data: [], error: null };
+        // !inner makes the date filter drop attendance rows, not just blank their schedule.
+        const schedule = date ? 'schedules!inner' : 'schedules';
         let query = supabase
             .from('attendance')
-            .select('*, personnel(name), schedules(duty_date, start_time, end_time, title)');
+            .select(`*, personnel(name), ${schedule}(duty_date, start_time, end_time, title)`);
         if (date) query = query.eq('schedules.duty_date', date);
         return query.order('created_at', { ascending: false });
     },

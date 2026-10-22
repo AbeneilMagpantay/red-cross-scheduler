@@ -10,6 +10,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { getDutyProgressBadge, getRoleLabel } from '../lib/status';
 
 export default function Dashboard() {
     const { profile } = useAuth();
@@ -21,6 +22,7 @@ export default function Dashboard() {
     });
     const [todaySchedule, setTodaySchedule] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
 
     useEffect(() => {
         loadDashboardData();
@@ -29,11 +31,16 @@ export default function Dashboard() {
     const loadDashboardData = async () => {
         try {
             const today = format(new Date(), 'yyyy-MM-dd');
-            const [{ data: personnel }, { data: schedules }, { data: swaps }] = await Promise.all([
+            const [personnelRes, schedulesRes, swapsRes] = await Promise.all([
                 db.getPersonnel(),
                 db.getSchedules(today, today),
                 db.getSwapRequests('pending')
             ]);
+            const loadFailure = personnelRes.error || schedulesRes.error || swapsRes.error;
+            if (loadFailure) throw loadFailure;
+            const personnel = personnelRes.data?.filter((person) => person.is_active);
+            const schedules = schedulesRes.data;
+            const swaps = swapsRes.data;
 
             const statuses = (schedules || []).flatMap((schedule) => schedule.attendance || []).map((record) => record.status);
             const attended = statuses.filter((status) => status === 'present' || status === 'late').length;
@@ -47,8 +54,10 @@ export default function Dashboard() {
             });
 
             setTodaySchedule(schedules || []);
+            setLoadError('');
         } catch (error) {
             console.error('Error loading dashboard:', error);
+            setLoadError(error.message || 'The overview could not be loaded.');
         } finally {
             setLoading(false);
         }
@@ -82,6 +91,8 @@ export default function Dashboard() {
                 <div className="workspace-status"><span /> Live workspace</div>
             </div>
 
+            {loadError && <div className="inline-alert error mb-lg" role="alert">{loadError}</div>}
+
             <div className="stats-grid">
                 <div className="stat-card">
                     <div className="stat-icon red">
@@ -89,7 +100,7 @@ export default function Dashboard() {
                     </div>
                     <div className="stat-content">
                         <h3>{stats.totalPersonnel}</h3>
-                        <p>Total Personnel</p>
+                        <p>Active Personnel</p>
                     </div>
                 </div>
 
@@ -150,21 +161,24 @@ export default function Dashboard() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {todaySchedule.map((schedule) => (
-                                    <tr key={schedule.id}>
-                                        <td data-label="Personnel">{schedule.personnel?.name}</td>
-                                        <td data-label="Role">{schedule.personnel?.role}</td>
-                                        <td data-label="Time">
-                                            <div className="flex items-center gap-sm">
-                                                <Clock size={14} />
-                                                {schedule.start_time} - {schedule.end_time}
-                                            </div>
-                                        </td>
-                                        <td data-label="Status">
-                                            <span className="badge badge-success">Scheduled</span>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {todaySchedule.map((schedule) => {
+                                    const progress = getDutyProgressBadge(schedule.attendance || []);
+                                    return (
+                                        <tr key={schedule.id}>
+                                            <td data-label="Personnel">{schedule.personnel?.name}</td>
+                                            <td data-label="Role">{getRoleLabel(schedule.personnel?.role)}</td>
+                                            <td data-label="Time">
+                                                <div className="flex items-center gap-sm">
+                                                    <Clock size={14} />
+                                                    {schedule.start_time} - {schedule.end_time}
+                                                </div>
+                                            </td>
+                                            <td data-label="Status">
+                                                <span className={`badge badge-${progress.tone}`}>{progress.label}</span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

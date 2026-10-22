@@ -21,6 +21,9 @@ export default function Swaps() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [filter, setFilter] = useState('all');
     const [alert, setAlert] = useState({ type: '', message: '' });
+    const [loadError, setLoadError] = useState('');
+    const [formError, setFormError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
     const [formData, setFormData] = useState({
         schedule_id: '',
         target_id: '',
@@ -29,20 +32,22 @@ export default function Swaps() {
 
     const loadData = useCallback(async () => {
         try {
-            const [swapsRes, personnelRes] = await Promise.all([
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const [swapsRes, personnelRes, schedulesRes] = await Promise.all([
                 db.getSwapRequests(),
-                db.getPersonnel()
+                db.getPersonnel(),
+                profile?.id ? db.getSchedulesByPersonnel(profile.id, today) : Promise.resolve({ data: [], error: null })
             ]);
+            const loadFailure = swapsRes.error || personnelRes.error || schedulesRes.error;
+            if (loadFailure) throw loadFailure;
 
             setSwapRequests(swapsRes.data || []);
             setPersonnel(personnelRes.data?.filter(p => p.is_active) || []);
-
-            if (profile?.id) {
-                const { data: schedules } = await db.getSchedulesByPersonnel(profile.id);
-                setMySchedules(schedules || []);
-            }
+            setMySchedules(schedulesRes.data || []);
+            setLoadError('');
         } catch (error) {
             console.error('Error loading data:', error);
+            setLoadError(error.message || 'Swap requests could not be loaded.');
         } finally {
             setLoading(false);
         }
@@ -70,8 +75,10 @@ export default function Swaps() {
 
     const handleReject = async (id) => {
         try {
-            await db.updateSwapRequest(id, 'rejected');
-            setAlert({ type: 'success', message: 'Swap request has been rejected.' });
+            const { error } = await db.updateSwapRequest(id, 'rejected');
+            setAlert(error
+                ? { type: 'error', message: 'Failed to reject swap: ' + error.message }
+                : { type: 'success', message: 'Swap request has been rejected.' });
             loadData();
             setTimeout(() => setAlert({ type: '', message: '' }), 5000);
         } catch (error) {
@@ -80,23 +87,36 @@ export default function Swaps() {
         }
     };
 
+    const openRequestModal = () => {
+        setFormError('');
+        setIsModalOpen(true);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setFormError('');
+        setSubmitting(true);
 
         try {
-            await db.createSwapRequest({
+            const { error } = await db.createSwapRequest({
                 requester_id: profile.id,
                 target_id: formData.target_id,
                 schedule_id: formData.schedule_id,
                 reason: formData.reason || null,
                 status: 'pending'
             });
+            if (error) throw error;
 
             setIsModalOpen(false);
             setFormData({ schedule_id: '', target_id: '', reason: '' });
+            setAlert({ type: 'success', message: 'Swap request sent for approval.' });
+            setTimeout(() => setAlert({ type: '', message: '' }), 5000);
             loadData();
         } catch (error) {
             console.error('Error creating swap request:', error);
+            setFormError(error.message || 'Your swap request could not be sent.');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -132,7 +152,7 @@ export default function Swaps() {
                     </p>
                 </div>
                 {!isAdmin && (
-                    <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+                    <button className="btn btn-primary" onClick={openRequestModal}>
                         <ArrowLeftRight size={18} />
                         Request Swap
                     </button>
@@ -149,6 +169,8 @@ export default function Swaps() {
                     {alert.message}
                 </div>
             )}
+
+            {loadError && <div className="inline-alert error mb-lg" role="alert">{loadError}</div>}
 
             <div className="card mb-lg">
                 <div className="flex gap-md status-filter-grid">
@@ -269,6 +291,10 @@ export default function Swaps() {
                 title="Request Shift Swap"
             >
                 <form onSubmit={handleSubmit}>
+                    {formError && <div className="inline-alert error" role="alert">{formError}</div>}
+                    {!mySchedules.length && (
+                        <p className="text-sm text-muted mb-md">You have no upcoming duties to swap.</p>
+                    )}
                     <div className="form-group">
                         <label className="form-label">Your Schedule to Swap *</label>
                         <select
@@ -316,9 +342,9 @@ export default function Swaps() {
                         <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
                             Cancel
                         </button>
-                        <button type="submit" className="btn btn-primary">
+                        <button type="submit" className="btn btn-primary" disabled={submitting || !mySchedules.length}>
                             <ArrowLeftRight size={18} />
-                            Submit Request
+                            {submitting ? 'Sending…' : 'Submit Request'}
                         </button>
                     </div>
                 </form>
