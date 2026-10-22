@@ -6,6 +6,8 @@ import DeploymentNotifications from './components/DeploymentNotifications';
 import WhatsNew from './components/WhatsNew';
 import AppGuide from './components/AppGuide';
 import PageInfoBoard from './components/PageInfoBoard';
+import FeedbackProvider from './components/FeedbackProvider';
+import { PageLoader } from './components/ui';
 import { playArcTap } from './lib/sounds';
 import { hasSeenWhatsNew, rememberWhatsNewSeen } from './lib/whatsNew';
 import './index.css';
@@ -24,19 +26,10 @@ const Core = lazy(() => import('./pages/Core'));
 const Alerts = lazy(() => import('./pages/Alerts'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
-function PageLoader() {
-  return (
-    <div className="route-loader" role="status" aria-label="Loading page">
-      <div className="loading" />
-      <span>Loading...</span>
-    </div>
-  );
-}
-
 function FullPageLoader() {
   return (
-    <div className="flex items-center justify-center" style={{ height: '100vh' }}>
-      <div className="loading" style={{ width: 48, height: 48 }} />
+    <div className="full-page-loader" role="status" aria-label="Loading">
+      <div className="loading" />
     </div>
   );
 }
@@ -50,7 +43,7 @@ function AccessState({ badge, title, children, retryLabel }) {
         <h2>{title}</h2>
         {children}
         <div className="access-state-actions">
-          <button className="btn btn-primary" onClick={refreshProfile}>{retryLabel}</button>
+          {retryLabel && <button className="btn btn-primary" onClick={refreshProfile}>{retryLabel}</button>}
           <button className="btn btn-secondary" onClick={signOut}>Sign out</button>
         </div>
       </div>
@@ -59,7 +52,7 @@ function AccessState({ badge, title, children, retryLabel }) {
 }
 
 function ProtectedRoute({ children, adminOnly = false }) {
-  const { user, profile, loading, profileLoading, profileError, accountRequest, signOut, isAdmin } = useAuth();
+  const { user, profile, loading, profileLoading, profileError, accountRequest, isAdmin } = useAuth();
 
   if (loading) return <FullPageLoader />;
   if (!user) return <Navigate to="/login" replace />;
@@ -109,16 +102,9 @@ function ProtectedRoute({ children, adminOnly = false }) {
 
   if (profile.is_active === false) {
     return (
-      <div className="flex items-center justify-center flex-col gap-md" style={{ height: '100vh', padding: '2rem', textAlign: 'center' }}>
-        <h2 style={{ color: 'var(--warning)' }}>Account Inactive</h2>
-        <p>Your account has been deactivated.</p>
-        <button
-          className="btn btn-secondary mt-md"
-          onClick={signOut}
-        >
-          Sign out
-        </button>
-      </div>
+      <AccessState badge={<span className="badge badge-warning">Account inactive</span>} title="Your account has been deactivated">
+        <p>Please contact an administrator if you need access again.</p>
+      </AccessState>
     );
   }
 
@@ -153,25 +139,29 @@ function AppLayout() {
   };
 
   return (
-    <div className={`app-layout ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <Sidebar
-        onOpenWhatsNew={() => setIsWhatsNewOpen(true)}
-        onOpenGuide={() => setIsGuideOpen(true)}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapsed={() => setIsSidebarCollapsed((current) => {
-          const next = !current;
-          localStorage.setItem('arc-sidebar-collapsed', String(next));
-          return next;
-        })}
-      />
-      <DeploymentNotifications />
-      <WhatsNew isOpen={isWhatsNewOpen} onClose={closeWhatsNew} />
-      {isGuideOpen && <AppGuide isOpen onClose={() => setIsGuideOpen(false)} />}
-      <main className="main-content">
-        <Outlet />
-      </main>
-      <PageInfoBoard />
-    </div>
+    <FeedbackProvider>
+      <div className={`app-layout ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <Sidebar
+          onOpenWhatsNew={() => setIsWhatsNewOpen(true)}
+          onOpenGuide={() => setIsGuideOpen(true)}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapsed={() => setIsSidebarCollapsed((current) => {
+            const next = !current;
+            localStorage.setItem('arc-sidebar-collapsed', String(next));
+            return next;
+          })}
+        />
+        <DeploymentNotifications />
+        <WhatsNew isOpen={isWhatsNewOpen} onClose={closeWhatsNew} />
+        {isGuideOpen && <AppGuide isOpen onClose={() => setIsGuideOpen(false)} />}
+        <main className="main-content">
+          <div className="page-container">
+            <Outlet />
+          </div>
+        </main>
+        <PageInfoBoard />
+      </div>
+    </FeedbackProvider>
   );
 }
 

@@ -1,4 +1,5 @@
 import { UNTITLED_DUTY } from './schedule.js';
+import { formatTimeRange } from './format.js';
 
 const normalizeTitle = (title) => title.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 
@@ -34,19 +35,22 @@ export const groupAttendanceByEvent = (attendanceRecords = []) => {
                 id: key,
                 title,
                 date,
-                timeRanges: new Set(),
+                timeRanges: new Map(),
                 attendees: []
             });
         }
 
         const event = grouped.get(key);
-        event.timeRanges.add(scheduledTime);
+        // Sort and group on HH:MM keys; show 12-hour labels.
+        const timeLabel = formatTimeRange(schedule.start_time, schedule.end_time);
+        event.timeRanges.set(scheduledTime, timeLabel);
         event.attendees.push({
             id: record.id,
             personnelId: record.personnel_id,
             scheduleId: record.schedule_id,
             name: record.personnel?.name || 'Unknown',
             scheduledTime,
+            timeLabel,
             checkIn: record.check_in,
             checkOut: record.check_out,
             status: record.status || 'pending',
@@ -57,7 +61,8 @@ export const groupAttendanceByEvent = (attendanceRecords = []) => {
     return Array.from(grouped.values())
         .map((event) => ({
             ...event,
-            timeRanges: Array.from(event.timeRanges).sort(),
+            timeRanges: Array.from(event.timeRanges.keys()).sort(),
+            timeLabels: Array.from(event.timeRanges.keys()).sort().map((range) => event.timeRanges.get(range)),
             attendees: event.attendees.sort((a, b) =>
                 a.scheduledTime.localeCompare(b.scheduledTime) || a.name.localeCompare(b.name)
             )

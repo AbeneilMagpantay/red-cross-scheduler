@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { db } from '../lib/supabase';
 import Modal from '../components/Modal';
+import InlineAlert from '../components/InlineAlert';
+import { useConfirm, useToast } from '../components/feedback';
 import {
     Plus,
     Search,
@@ -10,12 +12,13 @@ import {
     Phone,
     Mail,
     User,
-    AlertCircle,
-    CheckCircle,
     Clock3,
     UserCheck,
     UserX
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { EmptyState, PageLoader, StatusBadge } from '../components/ui';
+import { getRoleLabel } from '../lib/status';
 
 const getPersonnelData = (formData) => ({
     ...formData,
@@ -23,6 +26,8 @@ const getPersonnelData = (formData) => ({
 });
 
 export default function Personnel() {
+    const confirm = useConfirm();
+    const toast = useToast();
     const [personnel, setPersonnel] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [accountRequests, setAccountRequests] = useState([]);
@@ -34,7 +39,7 @@ export default function Personnel() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
+    const [loadError, setLoadError] = useState('');
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -59,11 +64,15 @@ export default function Personnel() {
                 db.getAccountRequests('pending')
             ]);
 
+            const loadFailure = personnelRes.error || deptRes.error || requestRes.error;
+            if (loadFailure) throw loadFailure;
             setPersonnel(personnelRes.data || []);
             setDepartments(deptRes.data || []);
             setAccountRequests(requestRes.data || []);
+            setLoadError('');
         } catch (error) {
             console.error('Error loading data:', error);
+            setLoadError(error.message || 'Personnel could not be loaded.');
         } finally {
             setLoading(false);
         }
@@ -71,7 +80,6 @@ export default function Personnel() {
 
     const handleOpenModal = (person = null) => {
         setError('');
-        setSuccess('');
         if (person) {
             setEditingPerson(person);
             setFormData({
@@ -104,98 +112,89 @@ export default function Personnel() {
         setIsModalOpen(false);
         setEditingPerson(null);
         setError('');
-        setSuccess('');
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        setSuccess('');
         setSaving(true);
 
         try {
             if (editingPerson) {
                 const { error: updateError } = await db.updatePersonnel(editingPerson.id, getPersonnelData(formData));
                 if (updateError) throw updateError;
-                setSuccess('Personnel updated successfully!');
+                toast.success(`${formData.name} was updated.`);
             } else {
                 const { error: createError } = await db.createPersonnel(getPersonnelData(formData));
                 if (createError) throw createError;
-                setSuccess('Personnel record added. They can request their own login from the sign-in page.');
+                toast.success('Personnel record added. They can request their own login from the sign-in page.');
             }
-
-            setTimeout(() => {
-                handleCloseModal();
-                loadData();
-            }, 2000);
+            handleCloseModal();
+            loadData();
         } catch (error) {
             console.error('Error saving personnel:', error);
-            setError('An error occurred. Please try again.');
+            setError(error.message || 'Changes could not be saved. Please try again.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Runs a record action and reports the outcome as a toast.
+    const runAction = async (action, successMessage, failureMessage) => {
+        setSaving(true);
+        try {
+            const { error: actionError } = await action();
+            if (actionError) throw actionError;
+            toast.success(successMessage);
+            await loadData();
+        } catch (actionError) {
+            console.error(failureMessage, actionError);
+            toast.error(`${failureMessage} ${actionError.message || ''}`.trim());
         } finally {
             setSaving(false);
         }
     };
 
     const handleArchive = async (person) => {
-        if (!confirm(`Archive ${person.name}? They will lose access, but all schedules and attendance history will be preserved.`)) return;
-
-        try {
-            const { error } = await db.archivePersonnel(person.id);
-            if (error) {
-                alert('Failed to archive personnel: ' + error.message);
-                console.error('Archive error:', error);
-                return;
-            }
-            loadData();
-        } catch (error) {
-            console.error('Error archiving personnel:', error);
-            alert('An unexpected error occurred while archiving.');
-        }
+        const confirmed = await confirm({
+            title: `Archive ${person.name}?`,
+            message: 'They will lose access, but all of their schedules and attendance history will be kept.',
+            confirmLabel: 'Archive',
+            tone: 'danger'
+        });
+        if (!confirmed) return;
+        await runAction(() => db.archivePersonnel(person.id), `${person.name} was archived.`, 'Could not archive this person.');
     };
 
     const handleApproveRequest = async (request) => {
-        if (!confirm(`Approve ${request.name || request.email} as a volunteer? You can promote them to Officer afterward.`)) return;
-        setSaving(true);
-        try {
-            const { error: approvalError } = await db.approveAccountRequest(request.user_id);
-            if (approvalError) throw approvalError;
-            await loadData();
-        } catch (approvalError) {
-            alert(`Could not approve this request: ${approvalError.message}`);
-        } finally {
-            setSaving(false);
-        }
+        const confirmed = await confirm({
+            title: `Approve ${request.name || request.email}?`,
+            message: 'They will join as a Volunteer. You can promote them to Officer afterward.',
+            confirmLabel: 'Approve'
+        });
+        if (!confirmed) return;
+        await runAction(() => db.approveAccountRequest(request.user_id), `${request.name || request.email} was approved.`, 'Could not approve this request.');
     };
 
     const handleRejectRequest = async (request) => {
-        if (!confirm(`Decline the account request from ${request.name || request.email}?`)) return;
-        setSaving(true);
-        try {
-            const { error: rejectionError } = await db.rejectAccountRequest(request.user_id);
-            if (rejectionError) throw rejectionError;
-            await loadData();
-        } catch (rejectionError) {
-            alert(`Could not decline this request: ${rejectionError.message}`);
-        } finally {
-            setSaving(false);
-        }
+        const confirmed = await confirm({
+            title: `Decline ${request.name || request.email}?`,
+            message: 'Their account request will be declined.',
+            confirmLabel: 'Decline',
+            tone: 'danger'
+        });
+        if (!confirmed) return;
+        await runAction(() => db.rejectAccountRequest(request.user_id), 'The account request was declined.', 'Could not decline this request.');
     };
 
     const handleRestore = async (person) => {
-        if (!confirm(`Restore ${person.name} as active personnel?`)) return;
-
-        try {
-            const { error } = await db.restorePersonnel(person.id);
-            if (error) {
-                alert('Failed to restore personnel: ' + error.message);
-                console.error('Restore error:', error);
-                return;
-            }
-            loadData();
-        } catch (error) {
-            console.error('Error restoring personnel:', error);
-            alert('An unexpected error occurred while restoring.');
-        }
+        const confirmed = await confirm({
+            title: `Restore ${person.name}?`,
+            message: 'They will become active personnel again.',
+            confirmLabel: 'Restore'
+        });
+        if (!confirmed) return;
+        await runAction(() => db.restorePersonnel(person.id), `${person.name} was restored.`, 'Could not restore this person.');
     };
 
     const filteredPersonnel = personnel.filter(person => {
@@ -208,13 +207,7 @@ export default function Personnel() {
         return matchesSearch && matchesDept && matchesStatus;
     });
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center" style={{ height: '50vh' }}>
-                <div className="loading" style={{ width: 40, height: 40 }} />
-            </div>
-        );
-    }
+    if (loading) return <PageLoader label="Loading personnel…" />;
 
     return (
         <div className="personnel-page">
@@ -229,32 +222,26 @@ export default function Personnel() {
                 </button>
             </div>
 
+            {loadError && <InlineAlert type="error" className="mb-lg">{loadError}</InlineAlert>}
+
             <div className="card mb-lg">
-                <div className="flex gap-md personnel-filters" style={{ flexWrap: 'wrap' }}>
-                    <div style={{ flex: '1', minWidth: '200px' }}>
-                        <div style={{ position: 'relative' }}>
-                            <Search size={18} style={{
-                                position: 'absolute',
-                                left: '12px',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                color: 'var(--text-muted)'
-                            }} />
-                            <input
-                                type="text"
-                                className="form-input"
-                                placeholder="Search by name or email..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{ paddingLeft: '40px' }}
-                            />
-                        </div>
+                <div className="flex gap-md personnel-filters">
+                    <div className="search-field">
+                        <Search size={18} aria-hidden="true" />
+                        <input
+                            type="search"
+                            className="form-input"
+                            placeholder="Search by name or email..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            aria-label="Search personnel"
+                        />
                     </div>
                     <select
-                        className="form-select"
+                        className="form-select filter-select"
                         value={filterDept}
                         onChange={(e) => setFilterDept(e.target.value)}
-                        style={{ width: '200px' }}
+                        aria-label="Filter by batch"
                     >
                         <option value="">All Batches</option>
                         {departments.map(dept => (
@@ -262,10 +249,9 @@ export default function Personnel() {
                         ))}
                     </select>
                     <select
-                        className="form-select"
+                        className="form-select filter-select"
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
-                        style={{ width: '160px' }}
                         aria-label="Filter personnel status"
                     >
                         <option value="all">All Statuses</option>
@@ -291,7 +277,7 @@ export default function Personnel() {
                                 <div className="account-request-copy">
                                     <strong>{request.name || 'New member'}</strong>
                                     <span>{request.email}</span>
-                                    <small>Requested {new Date(request.created_at).toLocaleString()}</small>
+                                    <small>Requested {format(new Date(request.created_at), 'MMM d, yyyy · h:mm a')}</small>
                                 </div>
                                 <div className="account-request-actions">
                                     <button type="button" className="btn btn-primary btn-sm" onClick={() => handleApproveRequest(request)} disabled={saving}><UserCheck size={16} /> Approve</button>
@@ -305,11 +291,7 @@ export default function Personnel() {
 
             <div className="card">
                 {filteredPersonnel.length === 0 ? (
-                    <div className="empty-state">
-                        <User size={48} />
-                        <h3>No Personnel Found</h3>
-                        <p>Add new personnel or adjust your filters.</p>
-                    </div>
+                    <EmptyState icon={User} title="No Personnel Found">Add new personnel or adjust your filters.</EmptyState>
                 ) : (
                     <div className="table-container">
                         <table className="table">
@@ -320,7 +302,7 @@ export default function Personnel() {
                                     <th>Role</th>
                                     <th>Batch Name</th>
                                     <th>Status</th>
-                                    <th style={{ width: '120px' }}>Actions</th>
+                                    <th className="col-actions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -328,9 +310,7 @@ export default function Personnel() {
                                     <tr key={person.id}>
                                         <td data-label="Name">
                                             <div className="flex items-center gap-md">
-                                                <div className="user-avatar" style={{ width: 36, height: 36, fontSize: '0.85rem' }}>
-                                                    {person.name.charAt(0).toUpperCase()}
-                                                </div>
+                                                <div className="user-avatar sm">{person.name.charAt(0).toUpperCase()}</div>
                                                 <span>{person.name}</span>
                                             </div>
                                         </td>
@@ -351,29 +331,27 @@ export default function Personnel() {
                                             </div>
                                         </td>
                                         <td data-label="Role">
-                                            <span className="badge badge-info" style={{ textTransform: 'capitalize' }}>
-                                                {person.role}
-                                            </span>
+                                            <StatusBadge tone="info" label={getRoleLabel(person.role)} />
                                         </td>
                                         <td data-label="Batch">{person.departments?.name || '—'}</td>
                                         <td data-label="Status">
-                                            <span className={`badge ${person.is_active ? 'badge-success' : 'badge-neutral'}`}>
-                                                {person.is_active ? 'Active' : 'Inactive'}
-                                            </span>
+                                            <StatusBadge tone={person.is_active ? 'success' : 'neutral'} label={person.is_active ? 'Active' : 'Archived'} />
                                         </td>
                                         <td data-label="Actions">
                                             <div className="flex gap-sm">
                                                 <button
                                                     className="btn btn-ghost btn-sm"
                                                     onClick={() => handleOpenModal(person)}
+                                                    title="Edit personnel"
+                                                    aria-label={`Edit ${person.name}`}
                                                 >
                                                     <Edit2 size={16} />
                                                 </button>
                                                 {person.is_active ? (
                                                     <button
-                                                        className="btn btn-ghost btn-sm"
+                                                        className="btn btn-ghost btn-sm tone-warning"
                                                         onClick={() => handleArchive(person)}
-                                                        style={{ color: 'var(--warning)' }}
+                                                        disabled={saving}
                                                         title="Archive personnel"
                                                         aria-label={`Archive ${person.name}`}
                                                     >
@@ -381,9 +359,9 @@ export default function Personnel() {
                                                     </button>
                                                 ) : (
                                                     <button
-                                                        className="btn btn-ghost btn-sm"
+                                                        className="btn btn-ghost btn-sm tone-success"
                                                         onClick={() => handleRestore(person)}
-                                                        style={{ color: 'var(--success)' }}
+                                                        disabled={saving}
                                                         title="Restore personnel"
                                                         aria-label={`Restore ${person.name}`}
                                                     >
@@ -406,29 +384,6 @@ export default function Personnel() {
                 title={editingPerson ? 'Edit Personnel' : 'Add New Personnel'}
             >
                 <form onSubmit={handleSubmit}>
-                    {error && (
-                        <div className="flex items-center gap-sm mb-md" style={{
-                            padding: 'var(--space-md)',
-                            background: 'rgba(239, 68, 68, 0.1)',
-                            borderRadius: 'var(--radius-md)',
-                            color: 'var(--error)'
-                        }}>
-                            <AlertCircle size={18} />
-                            <span>{error}</span>
-                        </div>
-                    )}
-                    {success && (
-                        <div className="flex items-center gap-sm mb-md" style={{
-                            padding: 'var(--space-md)',
-                            background: 'rgba(16, 185, 129, 0.1)',
-                            borderRadius: 'var(--radius-md)',
-                            color: 'var(--success)'
-                        }}>
-                            <CheckCircle size={18} />
-                            <span>{success}</span>
-                        </div>
-                    )}
-
                     <div className="form-group">
                         <label className="form-label">Full Name *</label>
                         <input
@@ -489,7 +444,7 @@ export default function Personnel() {
                     </div>
 
                     <div className="flex gap-md form-row">
-                        <div className="form-group" style={{ flex: 1 }}>
+                        <div className="form-group">
                             <label className="form-label">License Type</label>
                             <select
                                 className="form-select"
@@ -501,9 +456,9 @@ export default function Personnel() {
                                 <option value="EFAT">EFAT</option>
                             </select>
                         </div>
-                        <div className="form-group" style={{ flex: 1 }}>
+                        <div className="form-group">
                             <label className="form-label">License Expiry</label>
-                            <label className="flex items-center gap-sm mb-sm" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
+                            <label className="checkbox-field compact">
                                 <input
                                     type="checkbox"
                                     checked={formData.license_expiry === 'N/A'}
@@ -511,7 +466,6 @@ export default function Personnel() {
                                         ...formData,
                                         license_expiry: e.target.checked ? 'N/A' : ''
                                     })}
-                                    style={{ width: 16, height: 16 }}
                                 />
                                 <span>N/A</span>
                             </label>
@@ -521,6 +475,7 @@ export default function Personnel() {
                                     className="form-input"
                                     value={formData.license_expiry}
                                     onChange={(e) => setFormData({ ...formData, license_expiry: e.target.value })}
+                                    aria-label="License expiry date"
                                 />
                             )}
                         </div>
@@ -531,30 +486,25 @@ export default function Personnel() {
                     )}
 
                     <div className="form-group">
-                        <label className="flex items-center gap-md" style={{ cursor: 'pointer' }}>
+                        <label className="checkbox-field">
                             <input
                                 type="checkbox"
                                 checked={formData.is_active}
                                 onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                                style={{ width: 18, height: 18 }}
                             />
                             <span>Active Personnel</span>
                         </label>
                     </div>
 
-                    <div className="modal-footer" style={{ padding: 0, border: 'none', marginTop: 'var(--space-lg)' }}>
+                    {error && <InlineAlert type="error">{error}</InlineAlert>}
+
+                    <div className="modal-actions">
                         <button type="button" className="btn btn-secondary" onClick={handleCloseModal} disabled={saving}>
                             Cancel
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={saving}>
-                            {saving ? (
-                                <>
-                                    <div className="loading" style={{ width: 16, height: 16 }} />
-                                    {editingPerson ? 'Saving...' : 'Creating...'}
-                                </>
-                            ) : (
-                                editingPerson ? 'Save Changes' : 'Add Personnel'
-                            )}
+                            {saving && <span className="loading" />}
+                            {saving ? 'Saving…' : editingPerson ? 'Save Changes' : 'Add Personnel'}
                         </button>
                     </div>
                 </form>

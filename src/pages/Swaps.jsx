@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { db } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
+import InlineAlert from '../components/InlineAlert';
+import { useToast } from '../components/feedback';
+import { EmptyState, PageLoader, StatusBadge } from '../components/ui';
 import {
     ArrowLeftRight,
     Check,
@@ -11,19 +14,30 @@ import {
     User
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { formatDutyDate, formatTimeRange } from '../lib/format';
+import { getSwapBadge } from '../lib/status';
+import { UNTITLED_DUTY } from '../lib/schedule';
+
+const FILTERS = [
+    { value: 'all', label: 'All' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' }
+];
 
 export default function Swaps() {
     const { isAdmin, profile } = useAuth();
+    const toast = useToast();
     const [swapRequests, setSwapRequests] = useState([]);
     const [mySchedules, setMySchedules] = useState([]);
     const [personnel, setPersonnel] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [filter, setFilter] = useState('all');
-    const [alert, setAlert] = useState({ type: '', message: '' });
     const [loadError, setLoadError] = useState('');
     const [formError, setFormError] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [updatingId, setUpdatingId] = useState(null);
     const [formData, setFormData] = useState({
         schedule_id: '',
         target_id: '',
@@ -57,33 +71,20 @@ export default function Swaps() {
         loadData();
     }, [loadData]);
 
-    const handleApprove = async (id) => {
+    const updateRequest = async (id, status) => {
+        setUpdatingId(id);
         try {
-            const { error } = await db.updateSwapRequest(id, 'approved');
-            if (error) {
-                setAlert({ type: 'error', message: 'Failed to approve swap: ' + error.message });
-            } else {
-                setAlert({ type: 'success', message: 'Swap approved! Schedules have been swapped successfully.' });
-            }
-            loadData();
-            setTimeout(() => setAlert({ type: '', message: '' }), 5000);
+            const { error } = await db.updateSwapRequest(id, status);
+            if (error) throw error;
+            toast.success(status === 'approved'
+                ? 'Swap approved. The schedules have been swapped.'
+                : 'Swap request rejected.');
+            await loadData();
         } catch (error) {
-            console.error('Error approving swap:', error);
-            setAlert({ type: 'error', message: 'An error occurred while approving.' });
-        }
-    };
-
-    const handleReject = async (id) => {
-        try {
-            const { error } = await db.updateSwapRequest(id, 'rejected');
-            setAlert(error
-                ? { type: 'error', message: 'Failed to reject swap: ' + error.message }
-                : { type: 'success', message: 'Swap request has been rejected.' });
-            loadData();
-            setTimeout(() => setAlert({ type: '', message: '' }), 5000);
-        } catch (error) {
-            console.error('Error rejecting swap:', error);
-            setAlert({ type: 'error', message: 'An error occurred while rejecting.' });
+            console.error(`Error updating swap to ${status}:`, error);
+            toast.error(`Could not ${status === 'approved' ? 'approve' : 'reject'} this swap. ${error.message || ''}`.trim());
+        } finally {
+            setUpdatingId(null);
         }
     };
 
@@ -109,8 +110,7 @@ export default function Swaps() {
 
             setIsModalOpen(false);
             setFormData({ schedule_id: '', target_id: '', reason: '' });
-            setAlert({ type: 'success', message: 'Swap request sent for approval.' });
-            setTimeout(() => setAlert({ type: '', message: '' }), 5000);
+            toast.success('Swap request sent for approval.');
             loadData();
         } catch (error) {
             console.error('Error creating swap request:', error);
@@ -120,27 +120,9 @@ export default function Swaps() {
         }
     };
 
-    const getStatusBadge = (status) => {
-        const badges = {
-            pending: { class: 'badge-warning', label: 'Pending' },
-            approved: { class: 'badge-success', label: 'Approved' },
-            rejected: { class: 'badge-error', label: 'Rejected' }
-        };
-        return badges[status] || { class: 'badge-neutral', label: status };
-    };
+    const filteredRequests = swapRequests.filter(req => filter === 'all' || req.status === filter);
 
-    const filteredRequests = swapRequests.filter(req => {
-        if (filter === 'all') return true;
-        return req.status === filter;
-    });
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center" style={{ height: '50vh' }}>
-                <div className="loading" style={{ width: 40, height: 40 }} />
-            </div>
-        );
-    }
+    if (loading) return <PageLoader label="Loading shift swaps…" />;
 
     return (
         <div className="swaps-page">
@@ -159,29 +141,18 @@ export default function Swaps() {
                 )}
             </div>
 
-            {alert.message && (
-                <div className="card mb-lg" style={{
-                    padding: 'var(--space-md)',
-                    background: alert.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                    borderLeft: `4px solid ${alert.type === 'success' ? 'var(--success)' : 'var(--error)'}`,
-                    color: alert.type === 'success' ? 'var(--success)' : 'var(--error)'
-                }}>
-                    {alert.message}
-                </div>
-            )}
-
-            {loadError && <div className="inline-alert error mb-lg" role="alert">{loadError}</div>}
+            {loadError && <InlineAlert type="error" className="mb-lg">{loadError}</InlineAlert>}
 
             <div className="card mb-lg">
-                <div className="flex gap-md status-filter-grid">
-                    {['all', 'pending', 'approved', 'rejected'].map(status => (
+                <div className="flex gap-md status-filter-grid" role="group" aria-label="Filter swap requests">
+                    {FILTERS.map(({ value, label }) => (
                         <button
-                            key={status}
-                            className={`btn ${filter === status ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-                            onClick={() => setFilter(status)}
-                            style={{ textTransform: 'capitalize' }}
+                            key={value}
+                            className={`btn ${filter === value ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                            onClick={() => setFilter(value)}
+                            aria-pressed={filter === value}
                         >
-                            {status}
+                            {label}
                         </button>
                     ))}
                 </div>
@@ -189,16 +160,9 @@ export default function Swaps() {
 
             <div className="card">
                 {filteredRequests.length === 0 ? (
-                    <div className="empty-state">
-                        <ArrowLeftRight size={48} />
-                        <h3>No Swap Requests</h3>
-                        <p>
-                            {filter === 'all'
-                                ? 'There are no swap requests at the moment.'
-                                : `No ${filter} swap requests.`
-                            }
-                        </p>
-                    </div>
+                    <EmptyState icon={ArrowLeftRight} title="No Swap Requests">
+                        {filter === 'all' ? 'There are no swap requests at the moment.' : `No ${filter} swap requests.`}
+                    </EmptyState>
                 ) : (
                     <div className="table-container">
                         <table className="table">
@@ -213,72 +177,66 @@ export default function Swaps() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredRequests.map((request) => {
-                                    const statusInfo = getStatusBadge(request.status);
-
-                                    return (
-                                        <tr key={request.id}>
-                                            <td data-label="Requester">
-                                                <div className="flex items-center gap-md">
-                                                    <div className="user-avatar" style={{ width: 36, height: 36, fontSize: '0.85rem' }}>
-                                                        {request.requester?.name?.charAt(0).toUpperCase()}
+                                {filteredRequests.map((request) => (
+                                    <tr key={request.id}>
+                                        <td data-label="Requester">
+                                            <div className="flex items-center gap-md">
+                                                <div className="user-avatar sm">{request.requester?.name?.charAt(0).toUpperCase()}</div>
+                                                <span>{request.requester?.name}</span>
+                                            </div>
+                                        </td>
+                                        <td data-label="Target">
+                                            <div className="flex items-center gap-md">
+                                                <User size={16} />
+                                                <span>{request.target?.name}</span>
+                                            </div>
+                                        </td>
+                                        <td data-label="Schedule">
+                                            {request.schedules && (
+                                                <div className="flex flex-col gap-xs">
+                                                    <div className="flex items-center gap-sm">
+                                                        <Calendar size={14} />
+                                                        {formatDutyDate(request.schedules.duty_date, 'MMM d, yyyy')}
                                                     </div>
-                                                    <span>{request.requester?.name}</span>
+                                                    <div className="flex items-center gap-sm text-muted text-sm">
+                                                        <Clock size={14} />
+                                                        {formatTimeRange(request.schedules.start_time, request.schedules.end_time)}
+                                                    </div>
                                                 </div>
-                                            </td>
-                                            <td data-label="Target">
-                                                <div className="flex items-center gap-md">
-                                                    <User size={16} />
-                                                    <span>{request.target?.name}</span>
-                                                </div>
-                                            </td>
-                                            <td data-label="Schedule">
-                                                {request.schedules && (
-                                                    <div className="flex flex-col gap-xs">
-                                                        <div className="flex items-center gap-sm">
-                                                            <Calendar size={14} />
-                                                            {format(new Date(request.schedules.duty_date), 'MMM d, yyyy')}
-                                                        </div>
-                                                        <div className="flex items-center gap-sm text-muted text-sm">
-                                                            <Clock size={14} />
-                                                            {request.schedules.start_time} - {request.schedules.end_time}
-                                                        </div>
+                                            )}
+                                        </td>
+                                        <td data-label="Requested" className="text-sm text-muted">
+                                            {format(new Date(request.created_at), 'MMM d, h:mm a')}
+                                        </td>
+                                        <td data-label="Status">
+                                            <StatusBadge {...getSwapBadge(request.status)} />
+                                        </td>
+                                        {isAdmin && (
+                                            <td data-label="Actions">
+                                                {request.status === 'pending' && (
+                                                    <div className="flex gap-sm">
+                                                        <button
+                                                            className="btn btn-sm btn-primary"
+                                                            onClick={() => updateRequest(request.id, 'approved')}
+                                                            disabled={updatingId === request.id}
+                                                        >
+                                                            <Check size={14} />
+                                                            Approve
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-sm btn-danger"
+                                                            onClick={() => updateRequest(request.id, 'rejected')}
+                                                            disabled={updatingId === request.id}
+                                                        >
+                                                            <X size={14} />
+                                                            Reject
+                                                        </button>
                                                     </div>
                                                 )}
                                             </td>
-                                            <td data-label="Requested" className="text-sm text-muted">
-                                                {format(new Date(request.created_at), 'MMM d, h:mm a')}
-                                            </td>
-                                            <td data-label="Status">
-                                                <span className={`badge ${statusInfo.class}`}>
-                                                    {statusInfo.label}
-                                                </span>
-                                            </td>
-                                            {isAdmin && (
-                                                <td data-label="Actions">
-                                                    {request.status === 'pending' && (
-                                                        <div className="flex gap-sm">
-                                                            <button
-                                                                className="btn btn-sm btn-primary"
-                                                                onClick={() => handleApprove(request.id)}
-                                                            >
-                                                                <Check size={14} />
-                                                                Approve
-                                                            </button>
-                                                            <button
-                                                                className="btn btn-sm btn-danger"
-                                                                onClick={() => handleReject(request.id)}
-                                                            >
-                                                                <X size={14} />
-                                                                Reject
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            )}
-                                        </tr>
-                                    );
-                                })}
+                                        )}
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -291,9 +249,8 @@ export default function Swaps() {
                 title="Request Shift Swap"
             >
                 <form onSubmit={handleSubmit}>
-                    {formError && <div className="inline-alert error" role="alert">{formError}</div>}
                     {!mySchedules.length && (
-                        <p className="text-sm text-muted mb-md">You have no upcoming duties to swap.</p>
+                        <InlineAlert type="info">You have no upcoming duties to swap.</InlineAlert>
                     )}
                     <div className="form-group">
                         <label className="form-label">Your Schedule to Swap *</label>
@@ -306,7 +263,7 @@ export default function Swaps() {
                             <option value="">Select your schedule</option>
                             {mySchedules.map(s => (
                                 <option key={s.id} value={s.id}>
-                                    {format(new Date(s.duty_date), 'MMM d')} - {s.start_time} to {s.end_time}
+                                    {formatDutyDate(s.duty_date, 'MMM d')} · {s.title || UNTITLED_DUTY} · {formatTimeRange(s.start_time, s.end_time)}
                                 </option>
                             ))}
                         </select>
@@ -338,7 +295,9 @@ export default function Swaps() {
                         />
                     </div>
 
-                    <div className="modal-footer" style={{ padding: 0, border: 'none', marginTop: 'var(--space-lg)' }}>
+                    {formError && <InlineAlert type="error">{formError}</InlineAlert>}
+
+                    <div className="modal-actions">
                         <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
                             Cancel
                         </button>

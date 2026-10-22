@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../lib/supabase';
-import { AlertTriangle, BellRing, CalendarCheck2, Check, ShieldCheck, Sparkles, UserPlus } from 'lucide-react';
+import { BellRing, CalendarCheck2, ShieldCheck, Sparkles, UserPlus } from 'lucide-react';
+import InlineAlert from '../components/InlineAlert';
 import logoNew from '../assets/logo_new.png';
 
 function GoogleIcon() {
@@ -178,54 +179,18 @@ export default function Login() {
                     </div>
 
                     {configError && (
-                        <div style={{
-                            background: 'rgba(245, 158, 11, 0.15)',
-                            border: '1px solid rgba(245, 158, 11, 0.3)',
-                            padding: 'var(--space-md)',
-                            borderRadius: 'var(--radius-md)',
-                            marginBottom: 'var(--space-lg)',
-                            color: 'var(--warning)'
-                        }}>
-                            <div className="flex items-center gap-sm mb-sm">
-                                <AlertTriangle size={18} />
-                                <strong>Setup Required</strong>
-                            </div>
-                            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                                Configure Supabase credentials in .env.local file.
-                            </p>
-                        </div>
+                        <InlineAlert type="warning" className="mb-lg">
+                            <strong>Setup required.</strong> Configure Supabase credentials in the .env.local file.
+                        </InlineAlert>
                     )}
 
                     {showForgotPassword ? (
                         <form onSubmit={handleForgotPassword}>
-                            <h3 style={{ marginBottom: 'var(--space-md)' }}>Reset Password</h3>
+                            <h3 className="mb-md">Reset Password</h3>
 
-                            {error && (
-                                <div className="form-error mb-lg" style={{
-                                    background: 'rgba(239, 68, 68, 0.1)',
-                                    padding: 'var(--space-md)',
-                                    borderRadius: 'var(--radius-md)',
-                                    textAlign: 'center'
-                                }}>
-                                    {error}
-                                </div>
-                            )}
+                            {error && <InlineAlert type="error" className="mb-lg">{error}</InlineAlert>}
 
-                            {success && (
-                                <div style={{
-                                    background: 'rgba(34, 197, 94, 0.15)',
-                                    padding: 'var(--space-md)',
-                                    borderRadius: 'var(--radius-md)',
-                                    marginBottom: 'var(--space-lg)',
-                                    color: 'var(--success)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 'var(--space-sm)'
-                                }}>
-                                    <Check size={18} />
-                                    {success}
-                                </div>
-                            )}
+                            {success && <InlineAlert type="success" className="mb-lg">{success}</InlineAlert>}
 
                             <div className="form-group">
                                 <label className="form-label">Email Address</label>
@@ -271,7 +236,7 @@ export default function Login() {
                                 </div>
                             </div>
 
-                            {error && <div className="form-error mb-lg login-message">{error}</div>}
+                            {error && <InlineAlert type="error" className="mb-lg">{error}</InlineAlert>}
 
                             <div className="form-group">
                                 <label className="form-label">Full name</label>
@@ -298,19 +263,8 @@ export default function Login() {
                         </form>
                     ) : (
                         <div>
-                            {success && (
-                                <div className="login-message success mb-lg"><Check size={18} /> {success}</div>
-                            )}
-                            {error && (
-                                <div className="form-error mb-lg" style={{
-                                    background: 'rgba(239, 68, 68, 0.1)',
-                                    padding: 'var(--space-md)',
-                                    borderRadius: 'var(--radius-md)',
-                                    textAlign: 'center'
-                                }}>
-                                    {error}
-                                </div>
-                            )}
+                            {success && <InlineAlert type="success" className="mb-lg">{success}</InlineAlert>}
+                            {error && <InlineAlert type="error" className="mb-lg">{error}</InlineAlert>}
 
                             <button
                                 type="button"

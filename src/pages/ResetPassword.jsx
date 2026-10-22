@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../lib/supabase';
-import { Cross, Lock, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
+import { Cross, Lock, Eye, EyeOff } from 'lucide-react';
+import InlineAlert from '../components/InlineAlert';
 
 export default function ResetPassword() {
     const [password, setPassword] = useState('');
@@ -72,33 +73,13 @@ export default function ResetPassword() {
                         <p>Enter your new password below</p>
                     </div>
 
-                    {message.text && (
-                        <div
-                            style={{
-                                padding: 'var(--space-md)',
-                                marginBottom: 'var(--space-lg)',
-                                borderRadius: 'var(--radius-md)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 'var(--space-sm)',
-                                background: message.type === 'success'
-                                    ? 'rgba(34, 197, 94, 0.15)'
-                                    : 'rgba(239, 68, 68, 0.15)',
-                                color: message.type === 'success'
-                                    ? 'var(--success)'
-                                    : 'var(--error)'
-                            }}
-                        >
-                            {message.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
-                            {message.text}
-                        </div>
-                    )}
+                    {message.text && <InlineAlert type={message.type} className="mb-lg">{message.text}</InlineAlert>}
 
                     {isValidSession && !message.text?.includes('successfully') && (
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">
                                 <label className="form-label">New Password</label>
-                                <div style={{ position: 'relative' }}>
+                                <div className="password-input">
                                     <input
                                         type={showPassword ? 'text' : 'password'}
                                         className="form-input"
@@ -111,16 +92,7 @@ export default function ResetPassword() {
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        style={{
-                                            position: 'absolute',
-                                            right: '12px',
-                                            top: '50%',
-                                            transform: 'translateY(-50%)',
-                                            background: 'none',
-                                            border: 'none',
-                                            color: 'var(--text-secondary)',
-                                            cursor: 'pointer'
-                                        }}
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                                     >
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>

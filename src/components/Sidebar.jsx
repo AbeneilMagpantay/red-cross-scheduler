@@ -130,7 +130,7 @@ export default function Sidebar({ onOpenWhatsNew, onOpenGuide, isCollapsed, onTo
     const filteredTrackerItems = trackerNavItems.filter((item) => !item.adminOnly || isAdmin);
     const allNavItems = [...leadingNavItems, ...filteredTrackerItems, ...trailingNavItems, settingsItem];
     const trackerIsActive = trackerNavItems.some((item) => item.path === location.pathname);
-    const mobileNavPaths = ['/', '/alerts', '/tracker', '/schedule'];
+    const mobileNavPaths = ['/', '/alerts', '/schedule', '/attendance'];
     const mobileNavItems = allNavItems.filter((item) => mobileNavPaths.includes(item.path));
     const activeItem = allNavItems.find((item) => item.path === location.pathname);
     const isMoreActive = !mobileNavPaths.includes(location.pathname);
@@ -304,7 +304,7 @@ export default function Sidebar({ onOpenWhatsNew, onOpenGuide, isCollapsed, onTo
                             <Sparkles size={20} />
                             <span className="nav-label">What's New</span>
                         </button>
-                        <button className="nav-link mt-md" onClick={signOut} style={{ width: '100%' }} title={isCollapsed ? 'Sign Out' : undefined}>
+                        <button type="button" className="nav-link mt-md w-full" onClick={signOut} title={isCollapsed ? 'Sign Out' : undefined}>
                             <LogOut size={20} />
                             <span className="nav-label">Sign Out</span>
                         </button>

@@ -175,7 +175,7 @@ h5 {
   min-height: 100vh;
 }
 
-.main-content>div {
+.page-container > div {
   /* No fill-mode: a retained transform would re-anchor fixed modals. */
   animation: pageEnter var(--transition-slow);
 }
@@ -429,12 +429,6 @@ input[type='date']::-webkit-calendar-picker-indicator:hover,
 input[type='time']::-webkit-calendar-picker-indicator:hover {
   background-color: rgba(239, 35, 60, 0.2);
   opacity: 1;
-}
-
-.form-error {
-  font-size: 0.8rem;
-  color: var(--error);
-  margin-top: var(--space-xs);
 }
 
 /* ===== TABLES ===== */
@@ -1649,9 +1643,6 @@ input[type='time']::-webkit-calendar-picker-indicator:hover {
 }
 
 @media (max-width: 480px) {
-  .main-content {
-    padding-top: 65px;
-  }
 
   .page-title {
     font-size: 1.25rem;
@@ -1722,12 +1713,6 @@ input[type='time']::-webkit-calendar-picker-indicator:hover {
     width: 32px;
     height: 32px;
     font-size: 0.85rem;
-  }
-}
-
-@media (max-width: 768px) and (orientation: landscape) {
-  .main-content {
-    padding-top: 60px;
   }
 }
 
@@ -2193,9 +2178,6 @@ input[type='time']::-webkit-calendar-picker-indicator:hover {
 }
 
 @media (max-width: 768px) {
-  .main-content {
-    padding-top: 70px;
-  }
 
   .dashboard-hero {
     align-items: flex-start;
@@ -2719,20 +2701,6 @@ input[type='time']::-webkit-calendar-picker-indicator:hover {
   border-radius: 12px;
   color: var(--primary);
   background: rgba(239, 35, 60, 0.1);
-}
-
-.login-message {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.55rem;
-  padding: 0.8rem;
-  border-radius: var(--radius-md);
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.login-message.success {
-  color: var(--success);
-  background: rgba(34, 197, 94, 0.13);
 }
 
 .account-requests-card .card-title {
@@ -3390,22 +3358,6 @@ input[type='time']::-webkit-calendar-picker-indicator:hover {
 
 .alerts-empty strong {
   color: var(--text-primary);
-}
-
-.alerts-notice {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.alerts-notice button {
-  color: inherit;
-  border: 0;
-  background: transparent;
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-decoration: underline;
 }
 
 .alert-compose-form {
@@ -7245,16 +7197,6 @@ html[data-theme="dark"] .login-page {
   color: var(--error);
 }
 
-.arc-page-loading {
-  display: grid;
-  min-height: 55vh;
-  place-items: center;
-  align-content: center;
-  gap: 0.75rem;
-  color: var(--text-secondary);
-  font-weight: 800;
-}
-
 /* NEXUS */
 .nexus-board {
   padding: clamp(1rem, 2.3vw, 1.8rem);
@@ -8868,4 +8810,355 @@ html[data-theme="dark"] .core-status.none {
   min-height: 36px;
   padding-block: 0.35rem;
   font-size: 0.85rem;
+}
+
+/* ===== FEEDBACK: INLINE ALERTS, TOASTS, CONFIRM DIALOG ===== */
+.inline-alert {
+  align-items: flex-start;
+  line-height: 1.45;
+}
+
+.inline-alert > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.inline-alert-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-alert.success {
+  color: var(--status-success-text);
+  border-color: color-mix(in srgb, var(--status-success-text) 35%, transparent);
+  background: var(--status-success-surface);
+}
+
+.inline-alert.error {
+  color: var(--status-upcoming-text);
+  border-color: var(--status-upcoming-border);
+  background: var(--status-upcoming-surface);
+}
+
+.inline-alert.warning {
+  color: var(--status-warning-text);
+  border-color: color-mix(in srgb, var(--status-warning-text) 35%, transparent);
+  background: var(--status-warning-surface);
+}
+
+.inline-alert.info {
+  color: var(--status-info-text);
+  border-color: color-mix(in srgb, var(--status-info-text) 35%, transparent);
+  background: var(--status-info-surface);
+}
+
+.inline-alert-dismiss {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  margin: -0.55rem -0.6rem -0.55rem 0;
+  color: inherit;
+  border-radius: 50%;
+}
+
+.inline-alert-dismiss:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.feedback-toasts {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.5rem;
+  z-index: 1100;
+  display: grid;
+  gap: 0.6rem;
+  width: min(380px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.feedback-toast {
+  margin: 0;
+  border-width: 1px;
+  border-style: solid;
+  box-shadow: 4px 4px 0 var(--arc-shadow);
+  pointer-events: auto;
+  animation: toastEnter var(--transition-slow) both;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+.confirm-dialog-message {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.confirm-dialog-message input {
+  margin-top: var(--space-sm);
+}
+
+@media (max-width: 768px) {
+  .feedback-toasts {
+    top: calc(var(--mobile-header-height) + env(safe-area-inset-top) + 0.5rem);
+    right: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+  }
+
+  .modal-actions .btn {
+    flex: 1 1 auto;
+  }
+}
+
+/* ===== SHARED HELPERS ===== */
+.search-field {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.search-field > svg {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  color: var(--text-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.search-field .form-input {
+  padding-left: 40px;
+}
+
+.filter-select.form-select {
+  width: 200px;
+}
+
+.col-actions {
+  width: 120px;
+}
+
+.user-avatar.sm {
+  width: 36px;
+  height: 36px;
+  font-size: 0.85rem;
+}
+
+.btn.tone-warning {
+  color: var(--status-warning-text);
+}
+
+.btn.tone-success {
+  color: var(--status-success-text);
+}
+
+.form-row > .form-group {
+  flex: 1;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.checkbox-field.compact {
+  gap: var(--space-sm);
+  font-size: 0.85rem;
+}
+
+.checkbox-field input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.attendance-date-picker .form-input {
+  width: auto;
+}
+
+.full-page-loader {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.full-page-loader .loading {
+  width: 48px;
+  height: 48px;
+}
+
+.personnel-filters {
+  flex-wrap: wrap;
+}
+
+.inline-alert a {
+  color: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ===== MOBILE USABILITY ===== */
+/* Leave room for the floating Page info button below the last content. */
+.main-content {
+  padding-bottom: calc(1.35rem + 44px + 1.5rem);
+}
+
+.app-toast-close,
+.tour-icon-button {
+  width: 40px;
+  height: 40px;
+}
+
+.app-toast {
+  z-index: 990;
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 44px + 1.75rem);
+  }
+
+  .page-infoboard-trigger {
+    transition: bottom 220ms ease, transform 170ms ease, box-shadow 170ms ease;
+  }
+
+  /* Follow the bottom bar down when it hides on scroll. */
+  .mobile-bottom-nav.is-scroll-hidden ~ .page-infoboard-trigger {
+    bottom: calc(env(safe-area-inset-bottom) + 0.85rem);
+  }
+
+  /* Keep the deployment toast clear of form buttons near the bottom. */
+  .app-toast {
+    top: calc(var(--mobile-header-height) + env(safe-area-inset-top) + 0.5rem);
+    bottom: auto;
+  }
+
+  /* iOS zooms into fields smaller than 16px. */
+  .form-input,
+  .form-select,
+  .attendance-status-select.form-select,
+  .schedule-team-name-input,
+  .schedule-team-member-controls .form-input,
+  .schedule-team-member-controls .form-select,
+  .nexus-url-row input,
+  .nexus-search-bar input,
+  .core-status {
+    font-size: 16px;
+  }
+
+  /* Keep form buttons on screen in long dialogs. */
+  .modal form > .modal-footer,
+  .modal form > .modal-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.55rem;
+    margin: var(--space-md) -1rem calc(-1rem - env(safe-area-inset-bottom));
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--arc-line);
+    background: var(--arc-paper);
+  }
+
+  .modal form > .modal-footer > .btn,
+  .modal form > .modal-actions > .btn {
+    flex: 1 1 40%;
+    width: auto;
+  }
+
+  .modal form > .modal-footer > div:not(:empty),
+  .schedule-wizard-actions .schedule-wizard-navigation {
+    display: flex;
+    flex: 1 1 100%;
+    flex-direction: row;
+    gap: 0.55rem;
+  }
+
+  .modal form > .modal-footer > div > .btn {
+    flex: 1 1 0;
+    width: auto;
+  }
+
+  /* Tap targets of at least 40px. */
+  .alert-card-tools button,
+  .nexus-card-actions button,
+  .nexus-view-pill .nexus-pill-toggle {
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .nexus-view-pill .nexus-card-actions {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* No text below 11px. */
+  .mobile-bottom-link,
+  .table td::before,
+  .core-table td::before,
+  .schedule-calendar .calendar-weekday,
+  .calendar-weekday,
+  .alert-category,
+  .alert-pinned,
+  .schedule-assignment-heading .badge {
+    font-size: 0.6875rem;
+  }
+
+  .mobile-unread-badge {
+    min-width: 18px;
+    height: 18px;
+    font-size: 0.6875rem;
+  }
+
+  /* Wizard steps: only the current step keeps its label. */
+  .schedule-wizard-step:not(.is-active) small {
+    display: none;
+  }
+
+  .schedule-wizard-step.is-active small {
+    max-width: none;
+    font-size: 0.6875rem;
+  }
+}
+
+/* ===== ACCESSIBILITY & WIDE SCREENS ===== */
+.calendar-day-select {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 2px;
+  color: inherit;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.calendar-day-select:focus-visible {
+  outline: 2px solid var(--arc-accent-text);
+  outline-offset: 1px;
+}
+
+/* Keep pages readable on wide monitors; the landing page stays full width. */
+.page-container {
+  max-width: 1440px;
+  margin-inline: auto;
+}
+
+.page-container:has(> .arc-landing-page) {
+  max-width: none;
 }

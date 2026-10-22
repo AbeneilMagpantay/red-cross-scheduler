@@ -6,13 +6,15 @@ import {
     LogOut as LogOutIcon,
     Check,
     X,
-    AlertCircle,
     Calendar
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { getCheckInStatus } from '../lib/schedule';
-import { getRoleLabel } from '../lib/status';
+import { getAttendanceBadge, getRoleLabel } from '../lib/status';
+import { formatClockTime, formatDutyDate, formatTimeRange } from '../lib/format';
+import { EmptyState, PageLoader, StatCard, StatusBadge } from '../components/ui';
+import InlineAlert from '../components/InlineAlert';
 
 const ATTENDANCE_STATUSES = [
     { value: 'present', label: 'Present' },
@@ -96,16 +98,6 @@ export default function Attendance() {
             : db.createAttendance({ schedule_id: schedule.id, personnel_id: schedule.personnel_id, status })
     ), 'Attendance status could not be recorded.');
 
-    const getStatusBadge = (status) => {
-        const badges = {
-            present: { class: 'badge-success', label: 'Present' },
-            late: { class: 'badge-warning', label: 'Late' },
-            absent: { class: 'badge-error', label: 'Absent' },
-            excused: { class: 'badge-info', label: 'Excused' }
-        };
-        return badges[status] || { class: 'badge-neutral', label: 'Pending' };
-    };
-
     const stats = {
         total: schedules.length,
         present: attendance.filter(a => a.status === 'present').length,
@@ -113,13 +105,7 @@ export default function Attendance() {
         absent: attendance.filter(a => a.status === 'absent').length
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center" style={{ height: '50vh' }}>
-                <div className="loading" style={{ width: 40, height: 40 }} />
-            </div>
-        );
-    }
+    if (loading) return <PageLoader label="Loading attendance…" />;
 
     return (
         <div className="attendance-page">
@@ -129,75 +115,37 @@ export default function Attendance() {
                     <p className="page-subtitle">Track check-ins and attendance status</p>
                 </div>
                 <div className="flex items-center gap-md attendance-date-picker">
-                    <Calendar size={20} style={{ color: 'var(--text-muted)' }} />
+                    <Calendar size={20} className="text-muted" aria-hidden="true" />
                     <input
                         type="date"
                         className="form-input"
                         value={selectedDate}
                         onChange={(e) => { if (e.target.value) setSelectedDate(e.target.value); }}
-                        style={{ width: 'auto' }}
+                        aria-label="Duty date"
                     />
                 </div>
             </div>
 
             {error && (
-                <div className="inline-alert error" role="alert">
-                    <AlertCircle size={18} /> {error}
-                </div>
+                <InlineAlert type="error">{error}</InlineAlert>
             )}
 
             <div className="stats-grid mb-xl">
-                <div className="stat-card">
-                    <div className="stat-icon blue">
-                        <Calendar size={24} />
-                    </div>
-                    <div className="stat-content">
-                        <h3>{stats.total}</h3>
-                        <p>Scheduled Today</p>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon green">
-                        <Check size={24} />
-                    </div>
-                    <div className="stat-content">
-                        <h3>{stats.present}</h3>
-                        <p>Present</p>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon orange">
-                        <Clock size={24} />
-                    </div>
-                    <div className="stat-content">
-                        <h3>{stats.late}</h3>
-                        <p>Late</p>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon red">
-                        <X size={24} />
-                    </div>
-                    <div className="stat-content">
-                        <h3>{stats.absent}</h3>
-                        <p>Absent</p>
-                    </div>
-                </div>
+                <StatCard icon={Calendar} tone="blue" value={stats.total} label={isToday ? 'Scheduled Today' : 'Scheduled'} />
+                <StatCard icon={Check} tone="green" value={stats.present} label="Present" />
+                <StatCard icon={Clock} tone="orange" value={stats.late} label="Late" />
+                <StatCard icon={X} tone="red" value={stats.absent} label="Absent" />
             </div>
 
             <div className="card">
                 <div className="card-header">
                     <h3 className="card-title">
-                        {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
+                        {formatDutyDate(selectedDate)}
                     </h3>
                 </div>
 
                 {schedules.length === 0 ? (
-                    <div className="empty-state">
-                        <Calendar size={48} />
-                        <h3>No Schedules</h3>
-                        <p>There are no personnel scheduled for this date.</p>
-                    </div>
+                    <EmptyState icon={Calendar} title="No Schedules">There are no personnel scheduled for this date.</EmptyState>
                 ) : (
                     <div className="table-container">
                         <table className="table">
@@ -214,7 +162,6 @@ export default function Attendance() {
                             <tbody>
                                 {schedules.map((schedule) => {
                                     const att = getAttendanceForSchedule(schedule.id);
-                                    const statusInfo = att ? getStatusBadge(att.status) : getStatusBadge(null);
                                     const canManageAttendance = isAdmin || schedule.personnel_id === profile?.id;
                                     const isSaving = savingId === schedule.id;
                                     const canCheckIn = canManageAttendance && isToday && !att;
@@ -228,9 +175,7 @@ export default function Attendance() {
                                         <tr key={schedule.id}>
                                             <td data-label="Personnel">
                                                 <div className="flex items-center gap-md">
-                                                    <div className="user-avatar" style={{ width: 36, height: 36, fontSize: '0.85rem' }}>
-                                                        {schedule.personnel?.name?.charAt(0).toUpperCase()}
-                                                    </div>
+                                                    <div className="user-avatar sm">{schedule.personnel?.name?.charAt(0).toUpperCase()}</div>
                                                     <div>
                                                         <div>{schedule.personnel?.name}</div>
                                                         <div className="text-sm text-muted">{getRoleLabel(schedule.personnel?.role)}</div>
@@ -240,25 +185,17 @@ export default function Attendance() {
                                             <td data-label="Scheduled">
                                                 <div className="flex items-center gap-sm">
                                                     <Clock size={14} />
-                                                    {schedule.start_time} - {schedule.end_time}
+                                                    {formatTimeRange(schedule.start_time, schedule.end_time)}
                                                 </div>
                                             </td>
                                             <td data-label="Check In">
-                                                {att?.check_in
-                                                    ? format(new Date(att.check_in), 'h:mm a')
-                                                    : '—'
-                                                }
+                                                {formatClockTime(att?.check_in)}
                                             </td>
                                             <td data-label="Check Out">
-                                                {att?.check_out
-                                                    ? format(new Date(att.check_out), 'h:mm a')
-                                                    : '—'
-                                                }
+                                                {formatClockTime(att?.check_out)}
                                             </td>
                                             <td data-label="Status">
-                                                <span className={`badge ${statusInfo.class}`}>
-                                                    {statusInfo.label}
-                                                </span>
+                                                <StatusBadge {...getAttendanceBadge(att?.status)} />
                                             </td>
                                             <td data-label="Actions">
                                                 <div className="attendance-actions">

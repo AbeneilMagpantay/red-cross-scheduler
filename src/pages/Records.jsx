@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { format, parseISO } from 'date-fns';
 import {
     Calendar,
     Clock,
@@ -13,19 +12,10 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/supabase';
 import { groupAttendanceByEvent, summarizePersonnelAttendance } from '../lib/dutyRecords';
-
-const getStatusClass = (status) => {
-    if (status === 'present') return 'badge-success';
-    if (status === 'late') return 'badge-warning';
-    if (status === 'absent') return 'badge-error';
-    if (status === 'excused') return 'badge-info';
-    return 'badge-neutral';
-};
-
-const getStatusLabel = (status) => {
-    const value = status || 'pending';
-    return value.charAt(0).toUpperCase() + value.slice(1);
-};
+import InlineAlert from '../components/InlineAlert';
+import { EmptyState, PageLoader, StatusBadge } from '../components/ui';
+import { formatClockTime, formatDutyDate } from '../lib/format';
+import { getAttendanceBadge } from '../lib/status';
 
 export default function Records() {
     const { profile } = useAuth();
@@ -85,13 +75,7 @@ export default function Records() {
             });
     }, [profile?.id, records, searchTerm, viewMode]);
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center" style={{ height: '50vh' }}>
-                <div className="loading" style={{ width: 40, height: 40 }} />
-            </div>
-        );
-    }
+    if (loading) return <PageLoader label="Loading duty records…" />;
 
     return (
         <div className="records-page">
@@ -102,7 +86,7 @@ export default function Records() {
                 </div>
             </div>
 
-            {loadError && <div className="inline-alert error mb-lg" role="alert">{loadError}</div>}
+            {loadError && <InlineAlert type="error" className="mb-lg">{loadError}</InlineAlert>}
 
             <section className="card mb-lg" aria-labelledby="personal-duty-summary">
                 <div className="card-header">
@@ -195,15 +179,11 @@ export default function Records() {
 
             <div className="flex flex-col gap-md">
                 {filteredRecords.length === 0 ? (
-                    <div className="empty-state card">
-                        <FileText size={48} />
-                        <h3>No Records Found</h3>
-                        <p>
-                            {viewMode === 'mine'
-                                ? 'No personal attendance records match your search.'
-                                : 'Attendance records will appear here once duties are logged.'}
-                        </p>
-                    </div>
+                    <EmptyState icon={FileText} title="No Records Found" className="card">
+                        {viewMode === 'mine'
+                            ? 'No personal attendance records match your search.'
+                            : 'Attendance records will appear here once duties are logged.'}
+                    </EmptyState>
                 ) : (
                     filteredRecords.map((record) => (
                         <article key={record.id} className="card duty-record-card">
@@ -213,12 +193,12 @@ export default function Records() {
                                     <div className="duty-record-meta text-sm text-muted">
                                         <span className="flex items-center gap-xs">
                                             <Calendar size={14} />
-                                            {format(parseISO(record.date), 'MMMM d, yyyy')}
+                                            {formatDutyDate(record.date, 'MMMM d, yyyy')}
                                         </span>
                                         <span className="record-time-ranges">
                                             <Clock size={14} />
-                                            {record.timeRanges.map((time) => (
-                                                <span key={time} className="badge badge-neutral">{time}</span>
+                                            {record.timeLabels.map((label) => (
+                                                <span key={label} className="badge badge-neutral">{label}</span>
                                             ))}
                                         </span>
                                     </div>
@@ -248,21 +228,15 @@ export default function Records() {
                                                         {attendee.name}
                                                     </div>
                                                 </td>
-                                                <td data-label="Scheduled">{attendee.scheduledTime}</td>
+                                                <td data-label="Scheduled">{attendee.timeLabel}</td>
                                                 <td data-label="Check In">
-                                                    {attendee.checkIn
-                                                        ? format(new Date(attendee.checkIn), 'h:mm a')
-                                                        : '—'}
+                                                    {formatClockTime(attendee.checkIn)}
                                                 </td>
                                                 <td data-label="Check Out">
-                                                    {attendee.checkOut
-                                                        ? format(new Date(attendee.checkOut), 'h:mm a')
-                                                        : '—'}
+                                                    {formatClockTime(attendee.checkOut)}
                                                 </td>
                                                 <td data-label="Status">
-                                                    <span className={`badge ${getStatusClass(attendee.status)}`}>
-                                                        {getStatusLabel(attendee.status)}
-                                                    </span>
+                                                    <StatusBadge {...getAttendanceBadge(attendee.status)} />
                                                 </td>
                                             </tr>
                                         ))}

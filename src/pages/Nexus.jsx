@@ -23,16 +23,21 @@ import {
 import html2canvas from 'html2canvas';
 import FormatToolbar from '../components/FormatToolbar';
 import Modal from '../components/Modal';
+import { useConfirm, useToast } from '../components/feedback';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/supabase';
 import { arcHtmlToText, sanitizeArcHtml } from '../lib/arc';
 import { normalizeExternalUrl } from '../lib/alerts';
+import InlineAlert from '../components/InlineAlert';
+import { PageLoader } from '../components/ui';
 
 const MAX_QR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_QR_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export default function Nexus() {
     const { profile, canEditArc } = useAuth();
+    const confirm = useConfirm();
+    const toast = useToast();
     const [resources, setResources] = useState([]);
     const [imageUrls, setImageUrls] = useState({});
     const [loading, setLoading] = useState(true);
@@ -134,7 +139,7 @@ export default function Nexus() {
         } catch (saveError) {
             console.error('Could not save NEXUS resource:', saveError);
             setStatus('Sync failed');
-            window.alert(`Could not save this resource: ${saveError.message}`);
+            toast.error(`Could not save this resource: ${saveError.message}`);
             await loadResources({ quiet: true });
             return false;
         } finally {
@@ -158,13 +163,19 @@ export default function Nexus() {
             setStatus('Synced');
         } catch (createError) {
             setStatus('Sync failed');
-            window.alert(`Could not add a resource: ${createError.message}`);
+            toast.error(`Could not add a resource: ${createError.message}`);
         }
     };
 
     const removeResource = async (resource) => {
         if (!canEditArc) return;
-        if (!window.confirm(`Delete ${resource.title || 'this resource'}?`)) return;
+        const confirmed = await confirm({
+            title: `Delete ${resource.title || 'this resource'}?`,
+            message: 'It will be removed from the board for everyone.',
+            confirmLabel: 'Delete',
+            tone: 'danger'
+        });
+        if (!confirmed) return;
         markBusy(resource.id, true);
         setStatus('Saving…');
         try {
@@ -176,7 +187,7 @@ export default function Nexus() {
             setStatus('Synced');
         } catch (deleteError) {
             setStatus('Sync failed');
-            window.alert(`Could not delete this resource: ${deleteError.message}`);
+            toast.error(`Could not delete this resource: ${deleteError.message}`);
         } finally {
             markBusy(resource.id, false);
         }
@@ -195,7 +206,7 @@ export default function Nexus() {
         const { error: reorderError } = await db.reorderArcResources(reordered, profile?.id);
         if (reorderError) {
             setStatus('Sync failed');
-            window.alert(`Could not reorder the board: ${reorderError.message}`);
+            toast.error(`Could not reorder the board: ${reorderError.message}`);
             await loadResources({ quiet: true });
         } else {
             setStatus('Synced');
@@ -206,11 +217,11 @@ export default function Nexus() {
         if (!canEditArc) return;
         if (!file) return;
         if (!ALLOWED_QR_TYPES.has(file.type)) {
-            window.alert('Choose a PNG, JPEG, or WebP image.');
+            toast.error('Choose a PNG, JPEG, or WebP image.');
             return;
         }
         if (file.size > MAX_QR_BYTES) {
-            window.alert('The image must be 5 MB or smaller.');
+            toast.error('The image must be 5 MB or smaller.');
             return;
         }
 
@@ -230,7 +241,7 @@ export default function Nexus() {
             setImageUrls((current) => ({ ...current, [resource.id]: signedData?.signedUrl || '' }));
         } catch (uploadError) {
             setStatus('Sync failed');
-            window.alert(`Could not upload this QR image: ${uploadError.message}`);
+            toast.error(`Could not upload this QR image: ${uploadError.message}`);
         } finally {
             markBusy(resource.id, false);
         }
@@ -238,15 +249,19 @@ export default function Nexus() {
 
     const copyUrl = async (resource) => {
         if (!resource.url) {
-            window.alert('Add a URL to this resource first.');
+            toast.info('Add a URL to this resource first.');
             return;
         }
         try {
             await navigator.clipboard.writeText(resource.url);
-            setStatus('URL copied');
-            window.setTimeout(() => setStatus('Synced'), 1400);
+            toast.success('Link copied.');
         } catch {
-            window.prompt('Copy this URL:', resource.url);
+            await confirm({
+                title: 'Copy this link',
+                message: <input className="form-input" readOnly value={resource.url} onFocus={(event) => event.target.select()} aria-label="Resource link" />,
+                confirmLabel: 'Done',
+                cancelLabel: null
+            });
         }
     };
 
@@ -267,7 +282,7 @@ export default function Nexus() {
         } catch (exportError) {
             console.error('NEXUS export failed:', exportError);
             setStatus('Export failed');
-            window.alert('The image could not be exported. Please try again.');
+            toast.error('The image could not be exported. Please try again.');
         }
     };
 
@@ -281,7 +296,7 @@ export default function Nexus() {
         if (!canEditArc || !selectedResource || !detailDraft) return;
         const normalizedUrl = normalizeExternalUrl(detailDraft.url);
         if (detailDraft.url.trim() && !normalizedUrl) {
-            window.alert('Enter a complete http:// or https:// URL.');
+            toast.error('Enter a complete http:// or https:// URL.');
             return;
         }
         const updates = {
@@ -306,7 +321,7 @@ export default function Nexus() {
     ));
 
     if (loading) {
-        return <div className="arc-page-loading"><div className="loading" /><span>Opening NEXUS…</span></div>;
+        return <PageLoader label="Opening NEXUS…" />;
     }
 
     return (
@@ -348,7 +363,7 @@ export default function Nexus() {
                 </div>
             )}
 
-            {error && <div className="inline-alert error">{error} Apply the ARC integration migration in Supabase before using this page.</div>}
+            {error && <InlineAlert type="error">{error} Try refreshing the page.</InlineAlert>}
 
             <section className={`nexus-board nexus-view-${viewMode}`} ref={boardRef}>
                 <div className="nexus-board-intro">
@@ -392,7 +407,7 @@ export default function Nexus() {
                                             const value = event.target.value.trim();
                                             const normalizedUrl = normalizeExternalUrl(value);
                                             if (value && !normalizedUrl) {
-                                                window.alert('Enter a complete http:// or https:// URL.');
+                                                toast.error('Enter a complete http:// or https:// URL.');
                                                 loadResources({ quiet: true });
                                                 return;
                                             }

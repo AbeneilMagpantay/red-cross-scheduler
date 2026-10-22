@@ -6,11 +6,14 @@ import {
     Calendar,
     ClipboardCheck,
     ArrowLeftRight,
-    Clock,
-    AlertCircle
+    Clock
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
+import { EmptyState, PageLoader, StatCard, StatusBadge } from '../components/ui';
+import { formatTimeRange } from '../lib/format';
 import { getDutyProgressBadge, getRoleLabel } from '../lib/status';
+import InlineAlert from '../components/InlineAlert';
 
 export default function Dashboard() {
     const { profile } = useAuth();
@@ -70,13 +73,7 @@ export default function Dashboard() {
         return 'Good Evening';
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center" style={{ height: '50vh' }}>
-                <div className="loading" style={{ width: 40, height: 40 }} />
-            </div>
-        );
-    }
+    if (loading) return <PageLoader label="Loading overview…" />;
 
     return (
         <div className="dashboard">
@@ -91,48 +88,13 @@ export default function Dashboard() {
                 <div className="workspace-status"><span /> Live workspace</div>
             </div>
 
-            {loadError && <div className="inline-alert error mb-lg" role="alert">{loadError}</div>}
+            {loadError && <InlineAlert type="error" className="mb-lg">{loadError}</InlineAlert>}
 
             <div className="stats-grid">
-                <div className="stat-card">
-                    <div className="stat-icon red">
-                        <Users size={24} />
-                    </div>
-                    <div className="stat-content">
-                        <h3>{stats.totalPersonnel}</h3>
-                        <p>Active Personnel</p>
-                    </div>
-                </div>
-
-                <div className="stat-card">
-                    <div className="stat-icon blue">
-                        <Calendar size={24} />
-                    </div>
-                    <div className="stat-content">
-                        <h3>{stats.todayDuties}</h3>
-                        <p>On Duty Today</p>
-                    </div>
-                </div>
-
-                <div className="stat-card">
-                    <div className="stat-icon orange">
-                        <ArrowLeftRight size={24} />
-                    </div>
-                    <div className="stat-content">
-                        <h3>{stats.pendingSwaps}</h3>
-                        <p>Pending Swaps</p>
-                    </div>
-                </div>
-
-                <div className="stat-card">
-                    <div className="stat-icon green">
-                        <ClipboardCheck size={24} />
-                    </div>
-                    <div className="stat-content">
-                        <h3>{stats.attendanceRate === null ? '—' : `${stats.attendanceRate}%`}</h3>
-                        <p>Attendance Today</p>
-                    </div>
-                </div>
+                <StatCard icon={Users} tone="red" value={stats.totalPersonnel} label="Active Personnel" />
+                <StatCard icon={Calendar} tone="blue" value={stats.todayDuties} label="On Duty Today" />
+                <StatCard icon={ArrowLeftRight} tone="orange" value={stats.pendingSwaps} label="Pending Swaps" />
+                <StatCard icon={ClipboardCheck} tone="green" value={stats.attendanceRate === null ? '—' : `${stats.attendanceRate}%`} label="Attendance Today" />
             </div>
 
             <div className="card dashboard-roster">
@@ -144,11 +106,7 @@ export default function Dashboard() {
                 </div>
 
                 {todaySchedule.length === 0 ? (
-                    <div className="empty-state">
-                        <Calendar size={48} />
-                        <h3>No Duties Scheduled</h3>
-                        <p>There are no personnel scheduled for duty today.</p>
-                    </div>
+                    <EmptyState icon={Calendar} title="No Duties Scheduled">There are no personnel scheduled for duty today.</EmptyState>
                 ) : (
                     <div className="table-container">
                         <table className="table">
@@ -170,11 +128,11 @@ export default function Dashboard() {
                                             <td data-label="Time">
                                                 <div className="flex items-center gap-sm">
                                                     <Clock size={14} />
-                                                    {schedule.start_time} - {schedule.end_time}
+                                                    {formatTimeRange(schedule.start_time, schedule.end_time)}
                                                 </div>
                                             </td>
                                             <td data-label="Status">
-                                                <span className={`badge badge-${progress.tone}`}>{progress.label}</span>
+                                                <StatusBadge {...progress} />
                                             </td>
                                         </tr>
                                     );
@@ -186,17 +144,10 @@ export default function Dashboard() {
             </div>
 
             {stats.pendingSwaps > 0 && (
-                <div className="card mt-lg" style={{ borderColor: 'rgba(245, 158, 11, 0.3)' }}>
-                    <div className="flex items-center gap-md">
-                        <AlertCircle size={24} style={{ color: 'var(--warning)' }} />
-                        <div>
-                            <h4 style={{ color: 'var(--warning)' }}>Pending Shift Swap Requests</h4>
-                            <p className="text-muted text-sm">
-                                You have {stats.pendingSwaps} pending swap request(s) that need attention.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+                <InlineAlert type="warning" className="mt-lg">
+                    <strong>{stats.pendingSwaps} pending swap request{stats.pendingSwaps === 1 ? '' : 's'}</strong> need attention.{' '}
+                    <Link to="/swaps">Review swaps</Link>
+                </InlineAlert>
             )}
         </div>
     );

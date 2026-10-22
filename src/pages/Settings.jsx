@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import {
-    AlertCircle,
     Bell,
     BellOff,
     BellRing,
-    Check,
     Eye,
     EyeOff,
     Lock,
@@ -26,6 +24,7 @@ import {
 } from '../lib/notifications';
 import { getArcTheme, setArcTheme } from '../lib/theme';
 import { isArcSoundEnabled, setArcSoundEnabled } from '../lib/sounds';
+import InlineAlert from '../components/InlineAlert';
 
 export default function Settings() {
     const { user, profile, updatePassword } = useAuth();
@@ -222,10 +221,7 @@ export default function Settings() {
                     </div>
 
                     {notificationMessage.text && (
-                        <div className={`inline-alert ${notificationMessage.type}`} role="status">
-                            {notificationMessage.type === 'success' ? <Check size={17} /> : <AlertCircle size={17} />}
-                            {notificationMessage.text}
-                        </div>
+                        <InlineAlert type={notificationMessage.type}>{notificationMessage.text}</InlineAlert>
                     )}
 
                     <div className="settings-actions">
@@ -271,10 +267,7 @@ export default function Settings() {
                 </div>
 
                 {message.text && (
-                    <div className={`inline-alert ${message.type}`} role="status">
-                        {message.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
-                        {message.text}
-                    </div>
+                    <InlineAlert type={message.type}>{message.text}</InlineAlert>
                 )}
 
                 <form onSubmit={handlePasswordChange}>

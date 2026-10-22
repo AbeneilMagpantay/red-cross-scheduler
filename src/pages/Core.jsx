@@ -9,12 +9,14 @@ import {
     Plus
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import { useConfirm, useToast } from '../components/feedback';
 import FormatToolbar from '../components/FormatToolbar';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/supabase';
 import {
     CORE_ROWS,
     CORE_STATUSES,
+    arcHtmlToText,
     countDeliverables,
     createDefaultCoreFields,
     getCoreLineKeys,
@@ -22,6 +24,8 @@ import {
     parseCustomCoreRows,
     sanitizeArcHtml
 } from '../lib/arc';
+import InlineAlert from '../components/InlineAlert';
+import { PageLoader } from '../components/ui';
 
 function EditableField({ fieldKey, value, onCommit, className = '', editable = false }) {
     const fieldRef = useRef(null);
@@ -50,6 +54,8 @@ const createCustomSlug = () => `custom-${globalThis.crypto?.randomUUID?.() || Da
 
 export default function Core() {
     const { profile, canEditArc } = useAuth();
+    const confirm = useConfirm();
+    const toast = useToast();
     const defaultFields = useMemo(() => createDefaultCoreFields(), []);
     const [fields, setFields] = useState(defaultFields);
     const [loading, setLoading] = useState(true);
@@ -110,7 +116,7 @@ export default function Core() {
         if (saveError) {
             console.error('Could not save CORE field:', saveError);
             setSyncStatus('Sync failed');
-            window.alert(`Could not save this field: ${saveError.message}`);
+            toast.error(`Could not save this field: ${saveError.message}`);
         } else {
             setSyncStatus('Synced');
         }
@@ -132,7 +138,7 @@ export default function Core() {
         const { data, error: addError } = await db.upsertArcCoreFields(additions, profile?.id);
         if (addError) {
             setSyncStatus('Sync failed');
-            window.alert(`Could not add a CORE row: ${addError.message}`);
+            toast.error(`Could not add a CORE row: ${addError.message}`);
             return;
         }
         setFields((current) => ({
@@ -145,10 +151,16 @@ export default function Core() {
     const removeRow = async () => {
         const row = customRows.at(-1);
         if (!row) {
-            window.alert('There are no added rows to remove.');
+            toast.info('There are no added rows to remove.');
             return;
         }
-        if (!window.confirm(`Remove ${fields[`officer-${row.slug}`] || 'the last added row'}?`)) return;
+        const confirmed = await confirm({
+            title: `Remove ${arcHtmlToText(fields[`officer-${row.slug}`] || '') || 'the last added row'}?`,
+            message: 'This row and its deliverables will be removed for everyone.',
+            confirmLabel: 'Remove row',
+            tone: 'danger'
+        });
+        if (!confirmed) return;
 
         const nextRows = customRows.slice(0, -1);
         const keys = Object.keys(fields).filter((key) => key.includes(row.slug));
@@ -156,7 +168,7 @@ export default function Core() {
         const { error: deleteError } = await db.deleteArcCoreFields(keys);
         if (deleteError) {
             setSyncStatus('Sync failed');
-            window.alert(`Could not remove this CORE row: ${deleteError.message}`);
+            toast.error(`Could not remove this CORE row: ${deleteError.message}`);
             return;
         }
         await saveField('customRows', JSON.stringify(nextRows.map((item) => ({ slug: item.slug, colorClass: item.color }))));
@@ -184,14 +196,14 @@ export default function Core() {
             link.click();
         } catch (exportError) {
             console.error('CORE export failed:', exportError);
-            window.alert('The CORE image could not be exported. Please try again.');
+            toast.error('The CORE image could not be exported. Please try again.');
         } finally {
             setSavingImage(false);
         }
     };
 
     if (loading) {
-        return <div className="arc-page-loading"><div className="loading" /><span>Opening CORE…</span></div>;
+        return <PageLoader label="Opening CORE…" />;
     }
 
     return (
@@ -209,7 +221,7 @@ export default function Core() {
                 </div>
             </header>
 
-            {error && <div className="inline-alert error">{error} Apply the ARC integration migration in Supabase before using this page.</div>}
+            {error && <InlineAlert type="error">{error} Try refreshing the page.</InlineAlert>}
 
             <section className="core-sheet" ref={trackerRef}>
                 <div className="core-meta-grid">

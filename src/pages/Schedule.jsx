@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { db } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
+import { useConfirm, useToast } from '../components/feedback';
+import { formatTimeRange } from '../lib/format';
+import { PageLoader } from '../components/ui';
 import {
     Bell,
     Calendar as CalendarIcon,
@@ -46,6 +49,7 @@ import {
     organizeEventAssignments,
     reminderHoursToMinutes
 } from '../lib/schedule';
+import InlineAlert from '../components/InlineAlert';
 
 const createDraftId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 
@@ -110,7 +114,7 @@ const getEventWindow = (event) => {
 const getEventTimeRange = (event) => {
     const { start, end } = getEventWindow(event);
     if (!start || !end) return 'Time to be announced';
-    return `${start} – ${end}`;
+    return formatTimeRange(start, end);
 };
 
 const statusLabels = {
@@ -130,6 +134,8 @@ const useCompactLayout = () => useSyncExternalStore(subscribeCompact, () => wind
 export default function Schedule() {
     const { profile, isAdmin, canManageSchedule } = useAuth();
     const isCompact = useCompactLayout();
+    const confirm = useConfirm();
+    const toast = useToast();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [view, setView] = useState('month');
@@ -500,13 +506,14 @@ export default function Schedule() {
                     .catch((notificationError) => console.warn('Event saved, but its notification failed:', notificationError));
             }
 
+            toast.success(editingEvent ? 'Duty updated.' : 'Duty created.');
             setIsEventModalOpen(false);
             setEditingEvent(null);
             setEventStep(0);
             await loadData();
         } catch (error) {
             console.error('Error saving event:', error);
-            window.alert(`Failed to save event: ${error.message}`);
+            toast.error(`Failed to save event: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -514,18 +521,25 @@ export default function Schedule() {
 
     const handleDeleteEvent = async (targetEvent = editingEvent) => {
         if (!isAdmin || !targetEvent) return;
-        if (!window.confirm(`Delete “${targetEvent.title}” and all of its assignments? Linked attendance and swap records will also be permanently removed.`)) return;
+        const confirmed = await confirm({
+            title: `Delete “${targetEvent.title}”?`,
+            message: 'All of its assignments will be removed. Linked attendance and swap records will also be permanently deleted.',
+            confirmLabel: 'Delete event',
+            tone: 'danger'
+        });
+        if (!confirmed) return;
 
         setSaving(true);
         try {
             const { error } = await db.deleteEvent(targetEvent.eventId);
             if (error) throw error;
+            toast.success('Event deleted.');
             setIsEventModalOpen(false);
             setEditingEvent(null);
             setViewingEventId(null);
             await loadData();
         } catch (error) {
-            window.alert(`Failed to delete event: ${error.message}`);
+            toast.error(`Failed to delete event: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -569,11 +583,12 @@ export default function Schedule() {
             });
             if (error) throw error;
 
+            toast.success(`You're registered for ${registeringEvent.title}.`);
             setIsRegisterModalOpen(false);
             setRegisteringEventId(null);
             await loadData();
         } catch (error) {
-            window.alert(`Failed to register: ${error.message}`);
+            toast.error(`Failed to register: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -666,7 +681,7 @@ export default function Schedule() {
             setAssignmentEventId(null);
             await loadData();
         } catch (error) {
-            window.alert(`Failed to save assignment: ${error.message}`);
+            toast.error(`Failed to save assignment: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -675,8 +690,13 @@ export default function Schedule() {
     const handleDeleteAssignment = async () => {
         if (!editingSchedule || !assignmentEvent) return;
         const isOwner = editingSchedule.personnel_id === profile?.id;
-        const action = isOwner ? 'leave this event' : 'remove this volunteer';
-        if (!window.confirm(`Are you sure you want to ${action}?`)) return;
+        const confirmed = await confirm({
+            title: isOwner ? 'Leave this event?' : 'Remove this volunteer?',
+            message: isOwner ? 'You will no longer be registered for this duty.' : `${editingSchedule.personnel?.name || 'This volunteer'} will be removed from the duty roster.`,
+            confirmLabel: isOwner ? 'Leave event' : 'Remove',
+            tone: 'danger'
+        });
+        if (!confirmed) return;
 
         setSaving(true);
         try {
@@ -687,7 +707,7 @@ export default function Schedule() {
             setAssignmentEventId(null);
             await loadData();
         } catch (error) {
-            window.alert(`Failed to update registration: ${error.message}`);
+            toast.error(`Failed to update registration: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -732,7 +752,7 @@ export default function Schedule() {
             if (error) throw error;
             await loadData();
         } catch (error) {
-            window.alert(`Failed to add team: ${error.message}`);
+            toast.error(`Failed to add team: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -749,7 +769,7 @@ export default function Schedule() {
             if (error) throw error;
             await loadData();
         } catch (error) {
-            window.alert(`Failed to rename team: ${error.message}`);
+            toast.error(`Failed to rename team: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -757,7 +777,13 @@ export default function Schedule() {
 
     const handleDeleteManagedTeam = async (team) => {
         if (!canManageSchedule || !teamManagerEvent || getEventStatus(teamManagerEvent) === 'concluded') return;
-        if (!window.confirm(`Delete ${getTeamDisplayName(team, teamManagerEvent)}? Its volunteers will become unassigned.`)) return;
+        const confirmed = await confirm({
+            title: `Delete ${getTeamDisplayName(team, teamManagerEvent)}?`,
+            message: 'Its volunteers will become unassigned.',
+            confirmLabel: 'Delete team',
+            tone: 'danger'
+        });
+        if (!confirmed) return;
 
         setSaving(true);
         try {
@@ -765,7 +791,7 @@ export default function Schedule() {
             if (error) throw error;
             await loadData();
         } catch (error) {
-            window.alert(`Failed to delete team: ${error.message}`);
+            toast.error(`Failed to delete team: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -787,7 +813,7 @@ export default function Schedule() {
             if (error) throw error;
         } catch (error) {
             setSchedules(previousSchedules);
-            window.alert(`Failed to move volunteer: ${error.message}`);
+            toast.error(`Failed to move volunteer: ${error.message}`);
         } finally {
             setUpdatingTeamMemberId(null);
         }
@@ -804,7 +830,7 @@ export default function Schedule() {
             if (error) throw error;
             await loadData();
         } catch (error) {
-            window.alert(`Failed to update role: ${error.message}`);
+            toast.error(`Failed to update role: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -824,7 +850,7 @@ export default function Schedule() {
                 <div className="schedule-team-member-avatar" aria-hidden="true">{schedule.personnel?.name?.charAt(0).toLocaleUpperCase() || '?'}</div>
                 <div className="schedule-team-member-identity">
                     <strong>{schedule.personnel?.name || 'Unknown volunteer'}</strong>
-                    <span>{schedule.start_time?.slice(0, 5)} – {schedule.end_time?.slice(0, 5)}{locked ? ' · Checked out' : ''}</span>
+                    <span>{formatTimeRange(schedule.start_time, schedule.end_time)}{locked ? ' · Checked out' : ''}</span>
                     {!canManage && <small>{roleValue || 'Role not assigned'}</small>}
                 </div>
                 {canManage && (
@@ -871,7 +897,7 @@ export default function Schedule() {
                         {checkedOut && <span className="badge badge-success">Checked out</span>}
                     </div>
                     <div className="schedule-assignment-meta">
-                        <span><Clock size={14} /> {schedule.start_time?.slice(0, 5)} – {schedule.end_time?.slice(0, 5)}</span>
+                        <span><Clock size={14} /> {formatTimeRange(schedule.start_time, schedule.end_time)}</span>
                         <span><Users size={14} /> {assignedTeam ? getTeamDisplayName(assignedTeam, event) : schedule.team_station || 'Team not assigned'}</span>
                         {schedule.assignment_role && <span><UserRoundCog size={14} /> {schedule.assignment_role}</span>}
                     </div>
@@ -1032,7 +1058,7 @@ export default function Schedule() {
     };
 
     if (loading) {
-        return <div className="flex items-center justify-center" style={{ height: '50vh' }}><div className="loading" style={{ width: 40, height: 40 }} /></div>;
+        return <PageLoader label="Loading schedule…" />;
     }
 
     const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -1075,7 +1101,7 @@ export default function Schedule() {
                 </div>
             </section>
 
-            {loadError && <div className="inline-alert error" role="alert">{loadError}</div>}
+            {loadError && <InlineAlert type="error">{loadError}</InlineAlert>}
 
             <div className={`calendar schedule-calendar ${view}-view`}>
                 <div className="calendar-grid">
@@ -1090,7 +1116,15 @@ export default function Schedule() {
                             <div key={day.toISOString()} className={`calendar-day ${dayEvents.length ? 'has-events' : ''} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${!isSameMonth(day, currentDate) ? 'other-month' : ''}`} onClick={() => handleDayClick(day)}>
                                 <div className="calendar-day-number">
                                     <span className="calendar-day-week-label">{format(day, 'EEE, MMM')}</span>
-                                    <span>{format(day, 'd')}</span>
+                                    <button
+                                        type="button"
+                                        className="calendar-day-select"
+                                        onClick={(clickEvent) => { clickEvent.stopPropagation(); handleDayClick(day); }}
+                                        aria-label={`${format(day, 'EEEE, MMMM d')}${dayEvents.length ? `, ${dayEvents.length} dut${dayEvents.length === 1 ? 'y' : 'ies'}` : ''}`}
+                                        aria-pressed={isSelected}
+                                    >
+                                        {format(day, 'd')}
+                                    </button>
                                     {dayEvents.length > 0 && <span className="calendar-day-event-total">{dayEvents.length}</span>}
                                 </div>
                                 <div className="calendar-day-events">
@@ -1169,7 +1203,7 @@ export default function Schedule() {
                         <span>Step {eventStep + 1} of {eventSteps.length}</span>
                         <h2>{activeEventStep.label}</h2>
                     </div>
-                    {wizardError && <div className="inline-alert error" role="alert">{wizardError}</div>}
+                    {wizardError && <InlineAlert type="error">{wizardError}</InlineAlert>}
 
                     {activeEventStep.id === 'schedule' && (
                         <section className="schedule-form-section schedule-wizard-panel">

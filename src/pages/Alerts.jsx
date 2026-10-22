@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    AlertTriangle,
     ArrowDown,
     ArrowUp,
     Bell,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import FormatToolbar from '../components/FormatToolbar';
+import { useConfirm, useToast } from '../components/feedback';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -27,6 +27,8 @@ import {
 } from '../lib/alerts';
 import { arcHtmlToText, sanitizeArcHtml } from '../lib/arc';
 import { db } from '../lib/supabase';
+import InlineAlert from '../components/InlineAlert';
+import { PageLoader } from '../components/ui';
 
 const emptyDraft = {
     category: 'General',
@@ -46,12 +48,13 @@ const timeAgo = (value) => {
 
 export default function Alerts() {
     const { canEditArc, profile, user } = useAuth();
+    const confirm = useConfirm();
+    const toast = useToast();
     const [alerts, setAlerts] = useState([]);
     const [activeFilter, setActiveFilter] = useState('All');
     const [loading, setLoading] = useState(true);
     const [syncStatus, setSyncStatus] = useState('Synced');
     const [error, setError] = useState('');
-    const [notice, setNotice] = useState('');
     const [draft, setDraft] = useState(emptyDraft);
     const [editingId, setEditingId] = useState(null);
     const [composerOpen, setComposerOpen] = useState(false);
@@ -131,24 +134,23 @@ export default function Alerts() {
         if (!canEditArc || saving) return;
         const bodyHtml = sanitizeArcHtml(editorRef.current?.innerHTML || '');
         if (!draft.title.trim() || !arcHtmlToText(bodyHtml)) {
-            setNotice('Add both a title and announcement message before publishing.');
+            toast.error('Add both a title and announcement message before publishing.');
             return;
         }
 
         if (draft.external_url.trim() && !normalizeExternalUrl(draft.external_url)) {
-            setNotice('The optional link must begin with http:// or https://.');
+            toast.error('The optional link must begin with http:// or https://.');
             return;
         }
 
         const otherPinned = alerts.filter((alert) => alert.is_pinned && alert.id !== editingId).length;
         if (draft.is_pinned && otherPinned >= 3) {
-            setNotice('Only three urgent announcements can be pinned at once.');
+            toast.error('Only three urgent announcements can be pinned at once.');
             return;
         }
 
         setSaving(true);
         setSyncStatus('Saving…');
-        setNotice('');
         const payload = {
             category: draft.category,
             title: draft.title.trim(),
@@ -165,7 +167,7 @@ export default function Alerts() {
                 const { data, error: saveError } = await db.updateArcAnnouncement(editingId, payload);
                 if (saveError) throw saveError;
                 savedAlert = data;
-                setNotice('Announcement updated.');
+                toast.success('Announcement updated.');
             } else {
                 const { data, error: saveError } = await db.createArcAnnouncement({
                     ...payload,
@@ -176,9 +178,8 @@ export default function Alerts() {
                 savedAlert = data;
                 markAlertsRead([savedAlert], user?.id);
                 const { error: notificationError } = await db.sendArcAnnouncementNotification(savedAlert.id);
-                setNotice(notificationError
-                    ? 'Announcement published, but its background notification could not be sent.'
-                    : 'Announcement published and members were notified.');
+                if (notificationError) toast.warning('Announcement published, but its background notification could not be sent.');
+                else toast.success('Announcement published and members were notified.');
             }
 
             setAlerts((current) => sortArcAlerts([
@@ -192,7 +193,7 @@ export default function Alerts() {
         } catch (saveError) {
             console.error('Could not save ARC announcement:', saveError);
             setSyncStatus('Sync failed');
-            setNotice(saveError.message || 'The announcement could not be saved.');
+            toast.error(saveError.message || 'The announcement could not be saved.');
         } finally {
             setSaving(false);
         }
@@ -201,7 +202,7 @@ export default function Alerts() {
     const togglePin = async (alert) => {
         if (!canEditArc) return;
         if (!alert.is_pinned && alerts.filter((item) => item.is_pinned).length >= 3) {
-            setNotice('Only three urgent announcements can be pinned at once.');
+            toast.error('Only three urgent announcements can be pinned at once.');
             return;
         }
 
@@ -212,7 +213,7 @@ export default function Alerts() {
         });
         if (saveError) {
             setSyncStatus('Sync failed');
-            setNotice(saveError.message);
+            toast.error(saveError.message);
             return;
         }
         setAlerts((current) => sortArcAlerts(current.map((item) => item.id === alert.id ? data : item)));
@@ -233,7 +234,7 @@ export default function Alerts() {
         const { error: reorderError } = await db.reorderArcAnnouncements(reordered, profile?.id);
         if (reorderError) {
             setSyncStatus('Sync failed');
-            setNotice(reorderError.message);
+            toast.error(reorderError.message);
             await loadAlerts({ quiet: true });
         } else {
             setSyncStatus('Synced');
@@ -241,35 +242,48 @@ export default function Alerts() {
     };
 
     const deleteAnnouncement = async (alert) => {
-        if (!canEditArc || !window.confirm(`Delete “${alert.title}” for everyone?`)) return;
+        if (!canEditArc) return;
+        const confirmed = await confirm({
+            title: `Delete “${alert.title}”?`,
+            message: 'The announcement will be removed for everyone.',
+            confirmLabel: 'Delete',
+            tone: 'danger'
+        });
+        if (!confirmed) return;
         setSyncStatus('Saving…');
         const { error: deleteError } = await db.deleteArcAnnouncement(alert.id);
         if (deleteError) {
             setSyncStatus('Sync failed');
-            setNotice(deleteError.message);
+            toast.error(deleteError.message);
             return;
         }
         setAlerts((current) => current.filter((item) => item.id !== alert.id));
         setSelectedAlert((current) => current?.id === alert.id ? null : current);
         setSyncStatus('Synced');
-        setNotice('Announcement deleted.');
+        toast.success('Announcement deleted.');
     };
 
     const renotify = async (alert) => {
-        if (!canEditArc || !window.confirm(`Send “${alert.title}” to notification-enabled devices again?`)) return;
+        if (!canEditArc) return;
+        const confirmed = await confirm({
+            title: 'Resend notification?',
+            message: `“${alert.title}” will be sent again to every device with notifications on.`,
+            confirmLabel: 'Send again'
+        });
+        if (!confirmed) return;
         setSyncStatus('Sending…');
         const { data, error: notificationError } = await db.sendArcAnnouncementNotification(alert.id);
         if (notificationError) {
             setSyncStatus('Sync failed');
-            setNotice(notificationError.message || 'The notification could not be sent.');
+            toast.error(notificationError.message || 'The notification could not be sent.');
             return;
         }
         setSyncStatus('Synced');
-        setNotice(`Notification sent to ${data?.delivered ?? 0} device${data?.delivered === 1 ? '' : 's'}.`);
+        toast.success(`Notification sent to ${data?.delivered ?? 0} device${data?.delivered === 1 ? '' : 's'}.`);
     };
 
     if (loading) {
-        return <div className="arc-page-loading"><div className="loading" /><span>Opening Alerts…</span></div>;
+        return <PageLoader label="Opening Alerts…" />;
     }
 
     return (
@@ -287,8 +301,7 @@ export default function Alerts() {
                 </div>
             </header>
 
-            {error && <div className="inline-alert error">{error} Apply the ARC Alerts migration in Supabase before using this page.</div>}
-            {notice && <div className="inline-alert info alerts-notice" role="status">{notice}<button type="button" onClick={() => setNotice('')}>Dismiss</button></div>}
+            {error && <InlineAlert type="error">{error} Try refreshing the page.</InlineAlert>}
 
             <nav className="alerts-filters" aria-label="Announcement categories">
                 {['All', ...ALERT_CATEGORIES].map((category) => (
