@@ -4,8 +4,6 @@ ARC is the operations workspace of the Ateneo de Naga College Red Cross Youth (A
 
 Live site: <https://red-cross-scheduler.vercel.app>
 
-![Tracker overview](public/showcase/screenshot-2.png)
-
 ## Contents
 
 - [Features](#features)
@@ -180,11 +178,3 @@ If you change an Edge Function, redeploy it with the commands under [Push notifi
 ## Screenshots
 
 These show the earlier v2 interface; the current design differs.
-
-| Schedule | Personnel |
-|---|---|
-| ![Schedule](public/showcase/screenshot-1.png) | ![Personnel](public/showcase/screenshot-3.png) |
-
-| Attendance | Shift Swaps |
-|---|---|
-| ![Attendance](public/showcase/screenshot-4.png) | ![Shift Swaps](public/showcase/screenshot-5.png) |
