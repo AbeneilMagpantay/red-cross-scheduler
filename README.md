@@ -174,7 +174,3 @@ If you change an Edge Function, redeploy it with the commands under [Push notifi
 - The Supabase URL, the publishable (anon) key, and the VAPID public key are meant to be public. RLS policies and the Edge Function checks protect the data.
 - Keep `SUPABASE_SERVICE_ROLE_KEY`, `VAPID_PRIVATE_KEY`, `REMINDER_CRON_SECRET`, and Google client secrets only in Supabase or Vercel secret settings. Never give a private value a `VITE_` prefix, and never commit one.
 - After changing RLS policies, run `npm run security:check`. Every protected table should report `PASS`.
-
-## Screenshots
-
-These show the earlier v2 interface; the current design differs.
