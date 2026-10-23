@@ -1,159 +1,190 @@
-# ARC | Ateneo College Red Cross Youth Operations
+# ARC — ACRCY Operations
 
-A comprehensive web-based platform designed to streamline duty scheduling, personnel management, and attendance tracking for the Red Cross Camarines Sur Chapter. This solution modernizes the workflow by replacing manual logs with a centralized, real-time database system.
+ARC is the operations workspace of the Ateneo de Naga College Red Cross Youth (ACRCY). Members use it for duty scheduling and attendance, council announcements, shared resources, and committee deliverables. It installs to a phone's home screen and sends push notifications even when the app is closed.
 
-![Dashboard Overview](public/showcase/screenshot-2.png)
+Live site: <https://red-cross-scheduler.vercel.app>
 
-## Table of Contents
+![Tracker overview](public/showcase/screenshot-2.png)
+
+## Contents
 
 - [Features](#features)
-- [Built With](#built-with)
-- [Getting Started](#getting-started)
-- [Usage](#usage)
-- [Deploy](#deploy)
+- [Roles and permissions](#roles-and-permissions)
+- [Tech stack](#tech-stack)
+- [Project structure](#project-structure)
+- [Local development](#local-development)
+- [Setting up a Supabase project](#setting-up-a-supabase-project)
+- [Push notifications and reminders](#push-notifications-and-reminders)
+- [Deployment](#deployment)
+- [Security](#security)
+- [Screenshots](#screenshots)
 
 ## Features
 
-*   **Role-Based Access Control**: Secure authentication distinguishing between administrators and standard volunteers.
-*   **Dynamic Scheduling**: Month and week calendar for creating duties, teams, assignments, and reminders.
-*   **Personnel Management**: Centralized database for staff profiles, contact details, and department allocation.
-*   **Attendance Tracking**: Digital check-in/check-out system with automated status reporting (Present, Late, Absent).
-*   **Shift Swapping**: Automated workflow for personnel to request and validate shift exchanges.
-*   **Real-time Dashboard**: Live statistics on workforce deployment and pending administrative actions.
-*   **NEXUS Resource Board**: Officer-only shared QR cards, links, descriptions, ordering, and image exports.
-*   **CORE Deliverables**: Officer-only shared committee deliverables, statuses, deadlines, remarks, and exports.
-*   **ARC Alerts**: A categorized announcement feed with unread badges, rich text, urgent pins, realtime updates, and Web Push delivery.
-*   **Officer Access Level**: Officers keep normal volunteer abilities while gaining secure access to NEXUS and CORE.
-*   **ARC Design System**: A responsive cream, maroon, and navy interface with light/dark themes, a collapsible sidebar, optional interface sounds, and an in-app walkthrough.
+**Home and Alerts**
+- A landing page links to the four main areas: Alerts, NEXUS, CORE, and Tracker.
+- **Alerts** is the council feed. Announcements are categorized (Urgent, Operational Dispatch, Deployment, Training, General) and support rich text. Up to three can be pinned, and unread badges show what's new. Updates arrive in real time and as push notifications.
 
-## Built With
+**NEXUS and CORE**
+- **NEXUS** is a shared board of QR codes, links, and resources. It has search, a compact view, reordering, and image export.
+- **CORE** tracks committee deliverables: status, deadlines, and remarks for each committee. Edits save automatically and appear for everyone in real time. The board can be exported as an image.
 
-*   [React](https://reactjs.org/) - Frontend library for building user interfaces
-*   [Vite](https://vitejs.dev/) - Next Generation Frontend Tooling
-*   [Supabase](https://supabase.com/) - Open Source Firebase alternative (PostgreSQL + Auth)
-*   [Lucide React](https://lucide.dev/) - Consistent icon set
+**Tracker (volunteer operations)**
+- **Overview** shows today's duty roster with each person's live status, plus totals for personnel, swaps, and attendance.
+- **Schedule** is a month and week calendar of duties. A step-by-step wizard creates duties with details, contacts, teams, assignments, and up to five reminders. Volunteers register themselves and manage their own times and notes.
+- **Attendance** handles check-in and check-out on the duty day. Check-ins more than 15 minutes after the scheduled start are marked **Late**. Admins can set any status: Present, Late, Absent, or Excused.
+- **Duty Records** groups attendance by event and shows each member's attendance rate and logged hours.
+- **Shift Swaps** lets volunteers request to swap an upcoming duty with someone else. Admins approve or reject the request, and approval swaps the assignments.
+- **Personnel** (admins only) manages members, roles, batches, and licenses. Archiving keeps a member's history. New account requests are approved here.
 
-## Getting Started
+**Everywhere**
+- Light and dark themes, a collapsible sidebar, and a bottom navigation bar on phones.
+- An in-app walkthrough, a "Page info" guide on every page, and an optional tap sound.
+- In-app confirm dialogs and toast messages, keyboard-friendly dialogs, and a layout that works from 360px phones to large monitors.
 
-Follow these steps to set up the project locally.
+## Roles and permissions
 
-### Prerequisites
+| Ability | Volunteer | Officer | Admin |
+|---|:-:|:-:|:-:|
+| Read Alerts, NEXUS, CORE | ✓ | ✓ | ✓ |
+| Register for duties, edit own time and notes, check self in and out | ✓ | ✓ | ✓ |
+| Request shift swaps | ✓ | ✓ | |
+| Publish alerts; edit NEXUS and CORE | | ✓ | ✓ |
+| Create and edit duties, teams, and assignments | | ✓ | ✓ |
+| Personnel, account approvals, attendance status, swap approvals, deleting events | | | ✓ |
 
-*   Node.js (v20 or higher recommended)
-*   npm or yarn
-*   A Supabase project (Free Tier is sufficient)
+Members request an account from the sign-in page. Approving the request creates a Volunteer profile, or restores an archived profile with the same email so that person's duty history stays attached. Admins can then promote approved members to Officer. Google sign-in only works for an email that matches a Personnel record.
 
-### Installation
+These rules are enforced in the database by row-level security (RLS) and triggers, not only in the interface.
 
-1.  Clone the repository
-    ```sh
-    git clone https://github.com/AbeneilMagpantay/red-cross-scheduler.git
-    ```
-2.  Install NPM packages
-    ```sh
-    npm install
-    ```
-3.  Configure Environment Variables
-    Create a `.env.local` file in the root directory and add your Supabase credentials:
-    ```env
-    VITE_SUPABASE_URL=your_supabase_project_url
-    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-    ```
-4.  Run the application
-    ```sh
-    npm run dev
-    ```
+## Tech stack
 
-### Google Sign-In
+| Layer | Technology |
+|---|---|
+| Frontend | [React 19](https://react.dev/) single-page app built with [Vite](https://vite.dev/), plain JavaScript (`.jsx`), [React Router](https://reactrouter.com/), [date-fns](https://date-fns.org/), [Lucide](https://lucide.dev/) icons, [html2canvas](https://html2canvas.hertzen.com/) for image exports |
+| Backend | [Supabase](https://supabase.com/): PostgreSQL with RLS and triggers, Auth (email and Google), Realtime, and Storage for NEXUS QR images |
+| Server functions | Two Supabase Edge Functions (TypeScript on Deno) that send Web Push notifications with [web-push](https://github.com/web-push-libs/web-push) |
+| Scheduled jobs | `pg_cron` and `pg_net` call the reminder function every 5 minutes |
+| Installable app | Web app manifest and a service worker (`public/sw.js`) that receives push notifications |
+| Hosting | [Vercel](https://vercel.com/) serves the built static site and deploys on every push to `main` |
 
-1. Create a Google OAuth Web client and add your application URL as an authorized JavaScript origin.
-2. Add `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback` as an authorized Google redirect URI.
-3. Enable Google under **Supabase Dashboard → Authentication → Providers** and enter the Google client ID and secret.
-4. Add both the production URL and local development URL to **Authentication → URL Configuration → Redirect URLs**.
+There is no Node, PHP, or Python server. Node.js is only used for local development and the build.
 
-Google users must have an existing Personnel record with the same email address. This keeps access administrator-controlled.
+## Project structure
 
-### Deployment Notifications
+```
+src/
+  pages/            One component per route (Schedule, Attendance, Alerts, ...)
+  components/       Shared UI: Sidebar, Modal, FeedbackProvider (dialogs/toasts), ui.jsx, ...
+  context/          AuthContext: session, profile, and role flags
+  lib/              Data access (supabase.js) and pure helpers with tests (*.test.js)
+  index.css         All styles, organized in sections
+public/             Service worker, manifest, icons, theme bootstrap
+supabase/
+  schema.sql        Base tables for a new project
+  migrations/       Schema changes, applied in filename order
+  functions/        Edge Functions: send-deployment-notifications, send-duty-reminders
+scripts/            security-smoke.mjs (anonymous-access check)
+```
 
-Apply the database migrations, generate Web Push VAPID keys, and deploy the notification function.
+## Local development
 
-This project's migrations were applied by hand, so Supabase has no migration history for them and `supabase db push` would re-run every file. Apply only new migration files, in the SQL Editor or with `supabase db query --linked --file supabase/migrations/<file>.sql`.
+**Prerequisites:** Node.js 20 or newer, and a Supabase project (the free tier is enough).
 
 ```sh
-npx web-push generate-vapid-keys
-supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:admin@example.com REMINDER_CRON_SECRET=...
-supabase functions deploy send-deployment-notifications
-supabase functions deploy send-duty-reminders --no-verify-jwt
+git clone https://github.com/AbeneilMagpantay/red-cross-scheduler.git
+cd red-cross-scheduler
+npm install
+cp .env.example .env.local   # then fill in the values
+npm run dev
 ```
 
-Set the same public key as `VITE_VAPID_PUBLIC_KEY` in `.env.local` and in the Vercel project, then redeploy the site. Without it the app falls back to live notifications, which only work while the app is open. Notifications require HTTPS in production. On iPhone and iPad, install the site to the Home Screen before enabling background notifications.
+`.env.local` needs these values:
 
-Timed duty reminders run from the `20261022_duty_reminder_cron.sql` migration, which calls `send-duty-reminders` every 5 minutes. Before it can succeed, store the project URL and the `REMINDER_CRON_SECRET` value in Supabase Vault once (SQL Editor):
-
-```sql
-select vault.create_secret('https://YOUR_PROJECT_REF.supabase.co', 'project_url');
-select vault.create_secret('SAME_VALUE_AS_REMINDER_CRON_SECRET', 'reminder_cron_secret');
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_ANON_KEY=your_publishable_or_anon_key
+VITE_VAPID_PUBLIC_KEY=your_vapid_public_key   # required for background push
 ```
 
-The reminder function rejects calls that do not have this secret or the service-role token. Check recent runs with `select * from cron.job_run_details order by start_time desc limit 10;`.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the dev server |
+| `npm run build` | Build for production into `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run unit tests for `src/lib` (Node's built-in test runner) |
+| `npm run security:check` | Confirm anonymous users can't read protected tables |
 
-To confirm background delivery end to end, open **Settings → ARC Notifications → Send Test**, then close the app. The test push arrives about 10 seconds later.
+## Setting up a Supabase project
 
-### Required security rollout
+1. **Create the tables.** In the Supabase SQL Editor, run `supabase/schema.sql`. Then run every file in `supabase/migrations/` in filename order.
+   - `20260125_create_admin_user.sql` is a one-time template, not a schema change. Run it after your own account exists, with your email filled in, to make yourself the first admin.
+2. **Configure Auth.** Under **Authentication → Sign In / Providers → Email**, keep **Allow new users to sign up** and **Confirm email** turned on, and leave anonymous sign-ins off. New users can't use the app until an admin approves them.
+3. **Google sign-in (optional).**
+   - Create a Google OAuth Web client.
+   - Add your site URL as an authorized JavaScript origin, and add `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback` as a redirect URI.
+   - Enable Google under **Authentication → Providers**.
+   - Add your production and local URLs under **Authentication → URL Configuration → Redirect URLs**.
+4. **Passwords.** Require at least 12 characters, and enable leaked-password protection if your plan supports it.
 
-Before treating a deployment as production-ready:
+> **Existing project:** the current production database was set up by running migrations by hand, so Supabase has no migration history for it. Don't run `supabase db push`, because it would re-run every migration. Apply only new files, in the SQL Editor or with `supabase db query --linked --file supabase/migrations/<file>.sql`.
 
-1. Apply every migration, including `20260828_security_hardening.sql`, by running it in the Supabase SQL Editor. This removes the original public attendance/swap policies and enforces active-member, owner, and administrator access.
-   After applying it, run `npm run security:check` locally. It performs anonymous, count-only reads and should report `PASS` for every protected table.
-2. Redeploy both Edge Functions after changing their code:
+## Push notifications and reminders
+
+**What gets sent**
+- **New duty:** sent to everyone with notifications on when an Officer or Admin creates a duty.
+- **New alert:** sent to everyone with notifications on when an alert is published or resent.
+- **Duty reminder:** sent to the people assigned to a duty at each reminder time set on it.
+- **Account request:** sent to Admins when someone requests an account.
+
+**Setup**
+
+1. Generate VAPID keys and set the function secrets. `VAPID_SUBJECT` must start with `mailto:` or `https:`.
+   ```sh
+   npx web-push generate-vapid-keys
+   supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com REMINDER_CRON_SECRET=...
+   ```
+2. Deploy both functions. Without Docker, add `--use-api`.
    ```sh
    supabase functions deploy send-deployment-notifications
    supabase functions deploy send-duty-reminders --no-verify-jwt
    ```
-3. In **Supabase Dashboard → Authentication → Sign In / Providers → Email**, keep **Allow new users to sign up** and **Confirm email** enabled. New Auth users remain blocked until an administrator approves their request in Personnel. Leave anonymous sign-ins disabled.
-4. In the Supabase password security settings, require at least 12 characters and enable leaked-password protection when available. Require MFA for administrator accounts when the project plan supports it.
-5. Keep `SUPABASE_SERVICE_ROLE_KEY`, `VAPID_PRIVATE_KEY`, Google client secrets, and `REMINDER_CRON_SECRET` only in Supabase/Vercel secret settings. Never prefix a private value with `VITE_` or commit it to Git.
+3. Store the project URL and the cron secret in Vault, once, in the SQL Editor. The reminder job (`20261022_duty_reminder_cron.sql`) reads them each time it runs.
+   ```sql
+   select vault.create_secret('https://YOUR_PROJECT_REF.supabase.co', 'project_url');
+   select vault.create_secret('SAME_VALUE_AS_REMINDER_CRON_SECRET', 'reminder_cron_secret');
+   ```
+4. Set the same public key as `VITE_VAPID_PUBLIC_KEY` in Vercel, then redeploy. Without it, notifications only arrive while the app is open.
 
-The Supabase project URL, anonymous/publishable key, and VAPID public key are expected to be visible in the browser. RLS and the Edge Function checks are the security boundary for those public values.
+**Testing:** open **Settings → ARC Notifications**, turn notifications on, press **Send Test**, and close the app. A push should arrive about 10 seconds later. To see recent reminder-job runs, run `select * from cron.job_run_details order by start_time desc limit 10;`.
 
-### Account approval and roles
+**On iPhone and iPad:** add the site to the Home Screen first, then turn notifications on from inside the installed app.
 
-Apply `20260905_access_roles_and_approvals.sql` before enabling self-registration. Members request an account from the sign-in page; administrators review pending requests in **Personnel → Account approvals**. Approval creates a Volunteer profile, or restores an email-matched archived profile so its duty history stays connected. Administrators can promote approved members to Officer afterward.
+## Deployment
 
-- Volunteers can view NEXUS and CORE and manage only their own duty registration.
-- Officers can edit NEXUS, CORE, upcoming schedules, teams, and assignments.
-- Administrators additionally manage Personnel, account approvals, attendance administration, swap approvals, and deletion of concluded events.
+Vercel builds and deploys `main` automatically.
 
-The existing `send-duty-reminders` Cron run also sends background push alerts to notification-enabled administrators when new account requests are waiting, so redeploy that function after applying this update.
+1. Import the GitHub repository into Vercel. The framework preset is **Vite**.
+2. Add `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_VAPID_PUBLIC_KEY` for the Production environment. Vite only bakes in variables that start with `VITE_`, at build time, so redeploy after changing any of them.
+3. `vercel.json` sets the security headers, including the Content-Security-Policy, and the single-page-app rewrites.
 
-## Usage
+If you change an Edge Function, redeploy it with the commands under [Push notifications and reminders](#push-notifications-and-reminders).
 
-### Scheduling View
-The core interface allows administrators to view and manage monthly schedules. Assignments can be modified or removed directly from the calendar grid.
+## Security
 
-![Schedule Interface](public/showcase/screenshot-1.png)
+- The Supabase URL, the publishable (anon) key, and the VAPID public key are meant to be public. RLS policies and the Edge Function checks protect the data.
+- Keep `SUPABASE_SERVICE_ROLE_KEY`, `VAPID_PRIVATE_KEY`, `REMINDER_CRON_SECRET`, and Google client secrets only in Supabase or Vercel secret settings. Never give a private value a `VITE_` prefix, and never commit one.
+- After changing RLS policies, run `npm run security:check`. Every protected table should report `PASS`.
 
-### Personnel Directory
-Manage the volunteer database, including adding new members, updating roles, and monitoring active status.
+## Screenshots
 
-![Personnel Management](public/showcase/screenshot-3.png)
+These show the earlier v2 interface; the current design differs.
 
-### Attendance Tracking
-Complete digital log of check-ins and check-outs with status monitoring.
+| Schedule | Personnel |
+|---|---|
+| ![Schedule](public/showcase/screenshot-1.png) | ![Personnel](public/showcase/screenshot-3.png) |
 
-![Attendance Tracking](public/showcase/screenshot-4.png)
-
-### Shift Swaps
-Dedicated interface for approving or rejecting shift change requests.
-
-![Shift Swaps](public/showcase/screenshot-5.png)
-
-## Deploy
-
-The application is optimized for deployment on Vercel.
-
-1.  Push code to GitHub.
-2.  Import project into Vercel.
-3.  Set `Framework Preset` to **Vite**.
-4.  Add the environment variables listed in `.env.example`.
-5.  Deploy.
+| Attendance | Shift Swaps |
+|---|---|
+| ![Attendance](public/showcase/screenshot-4.png) | ![Shift Swaps](public/showcase/screenshot-5.png) |
